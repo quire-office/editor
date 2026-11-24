@@ -15,7 +15,7 @@
  * 用法（worktree 根起靜態伺服；Chrome 需 --remote-debugging-port=9222）：
  *   python3 -m http.server 8791 --bind 127.0.0.1 &
  *   node tests/u4f_underline_style_live_probe.mjs
- * 環境變數：U4F_URL（默認 http://127.0.0.1:8791/index.html）、
+ * 環境變數：U4F_URL（默認 http://127.0.0.1:8791/word.html）、
  *           CDP_URL（默認 http://127.0.0.1:9222）、U4F_OUT（證據 JSON 路徑）。
  *
  * 判定口徑：
@@ -34,7 +34,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const BASE_URL = process.env.U4F_URL || 'http://127.0.0.1:8791/index.html';
+const BASE_URL = process.env.U4F_URL || 'http://127.0.0.1:8791/word.html';
 const OUT = process.env.U4F_OUT || path.join(ROOT, 'evidence/word-ui-u4f-underline-live-evidence.json');
 const CDP_HTTP = process.env.CDP_URL || 'http://127.0.0.1:9222';
 

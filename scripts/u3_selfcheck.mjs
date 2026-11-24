@@ -42,7 +42,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-const HTML_PATH = path.join(ROOT_DIR, 'index.html');
+const HTML_PATH = path.join(ROOT_DIR, 'word.html');
 const CSS_PATH = path.join(ROOT_DIR, 'css/style.css');
 const CORE_JS_PATH = path.join(ROOT_DIR, 'js/qword-core.js');
 const UI_JS_PATH = path.join(ROOT_DIR, 'js/qword-ui.js');
@@ -75,7 +75,7 @@ const requiredFiles = [
   { path: CORE_JS_PATH, desc: '核心邏輯層 (js/qword-core.js)' },
   { path: UI_JS_PATH, desc: 'UI 綁定層 (js/qword-ui.js)' },
   { path: RENDERER_JS_PATH, desc: 'Vendor 繪製器 (vendor/renderer.js)' },
-  { path: HTML_PATH, desc: '外殼頁面 (shells/web/editor/index.html)' },
+  { path: HTML_PATH, desc: '外殼頁面 (word.html)' },
   { path: CSS_PATH, desc: '樣式表 (shells/web/editor/css/style.css)' }
 ];
 

@@ -35,7 +35,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-const HTML_PATH = path.join(ROOT_DIR, 'index.html');
+const HTML_PATH = path.join(ROOT_DIR, 'word.html');
 const CORE_JS_PATH = path.join(ROOT_DIR, 'js/qword-core.js');
 const UI_JS_PATH = path.join(ROOT_DIR, 'js/qword-ui.js');
 const ADAPTER_JS_PATH = path.join(ROOT_DIR, 'js/engine-adapter.js');
@@ -66,7 +66,7 @@ console.log('='.repeat(70));
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\n[檢查 1] 必要外殼檔案與 Wasm 產物存在性...');
 for (const [label, p] of [
-  ['index.html', HTML_PATH], ['qword-core.js', CORE_JS_PATH], ['qword-ui.js', UI_JS_PATH],
+  ['word.html', HTML_PATH], ['qword-core.js', CORE_JS_PATH], ['qword-ui.js', UI_JS_PATH],
   ['engine-adapter.js', ADAPTER_JS_PATH], ['mutation.rs（欄位真相來源）', MUTATION_RS_PATH],
   ['quire_web.js', WASM_JS_PATH], ['quire_web_bg.wasm', path.join(ROOT_DIR, 'vendor/pkg/quire_web_bg.wasm')]
 ]) {
@@ -641,7 +641,7 @@ for (const [name, op, inverse] of undoCases) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// [檢查 6] 禁區守紀：本卡不得動 index.html 與 core/
+// [檢查 6] 禁區守紀：本卡不得動 word.html 與 core/
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\n[檢查 6] 禁區與 vendor 紀律...');
 const editorJsDir = path.join(ROOT_DIR, 'js');
@@ -657,9 +657,9 @@ assert(fs.existsSync(path.join(ROOT_DIR, 'vendor/SYNC.md')), 'vendor/SYNC.md 缺
 console.log('  ✓ 零平行排版器、繪製器沿用 vendor（本卡未改繪製器）');
 
 // ─────────────────────────────────────────────────────────────────────────────
-// [檢查 7] index.html 入口盤點（PM-owned：本卡只回報缺口，不動按鈕）
+// [檢查 7] word.html 入口盤點（PM-owned：本卡只回報缺口，不動按鈕）
 // ─────────────────────────────────────────────────────────────────────────────
-console.log('\n[檢查 7] Ribbon 入口盤點（index.html 由 PM 擁有，本檢查只點名缺口）...');
+console.log('\n[檢查 7] Ribbon 入口盤點（word.html 由 PM 擁有，本檢查只點名缺口）...');
 const htmlCommands = new Set([...htmlSrc.matchAll(/data-command="([^"]+)"/g)].map(m => m[1]));
 const WIRE_TARGETS = [
   ...Object.keys(U4_TABLE_ROW_COMMANDS), ...Object.keys(U4_TABLE_COL_COMMANDS),

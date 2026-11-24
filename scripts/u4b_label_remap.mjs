@@ -30,12 +30,12 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // 可覆輸入源（U4b 追加）：--html <path> 從基準樹（git show main:...）重放映射，
 // --evid <path> 另存 evidence CSV。用途：零風險再生成逐鈕依據表（basis 擴寫後），
-// 同時佐證「同一工具、同一映射表」從 main 可重現出目前 index.html——非手改。
+// 同時佐證「同一工具、同一映射表」從 main 可重現出目前 word.html——非手改。
 const argVal = (flag) => {
   const i = process.argv.indexOf(flag);
   return i >= 0 && process.argv[i + 1] ? path.resolve(process.argv[i + 1]) : null;
 };
-const HTML = argVal('--html') || path.join(ROOT, 'index.html');
+const HTML = argVal('--html') || path.join(ROOT, 'word.html');
 const EVID = argVal('--evid') || path.join(ROOT, 'docs/word-ui-k29e-remap-evidence.csv');
 
 const LIVE_T = '引擎已支援（K29e 字元格式切片），外殼接線完成';

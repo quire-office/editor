@@ -14,6 +14,9 @@
 
 import { QWordCore, TABS, DEPENDENCY_MAP } from './qword-core.js';
 import { EngineAdapter, getDefaultSampleBytes, UNDERLINE_KINDS } from './engine-adapter.js';
+// C4 起始頁：本機最近清單（IndexedDB）。僅在瀏覽器環境載入；Node 自檢環境
+// （無 indexedDB）import 安全——模組內所有操作都在被呼叫時才碰 indexedDB。
+import * as recentStore from './recent-store.js';
 
 /**
  * 檔名副檔名 → MIME（僅在瀏覽器未給 file.type 時備援使用）。
@@ -623,6 +626,11 @@ export class QWordUI {
       await this.renderDocument();
       this.syncEngineStats();
       console.log(`[QWordUI] 成功載入文件: ${fileName}`);
+      // C4 起始頁：使用者開過的檔案記進本機最近清單（IndexedDB，零上傳）。
+      // 示範檔不記——它是內建資產不是使用者檔案，混進清單會稀釋「最近」。
+      if (fileName !== 'sample.docx') {
+        recentStore.recordOpen(fileName, bytes).catch(() => {});
+      }
     } catch (err) {
       console.error('[QWordUI] 開檔失敗:', err);
       let userMsg = err.message || '檔案格式無法讀取';
@@ -1808,6 +1816,19 @@ export class QWordUI {
 // 瀏覽器載入後自動啟動
 if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', () => {
-    new QWordUI();
+    const ui = new QWordUI();
+    // C4 格式路由入口協定：word.html 由起始頁以兩種形態叫起——
+    //   ?sample=1 → 直接開內建示範檔；
+    //   （無參數）→ 先收起始頁放進 IndexedDB 的 pending 檔（開啟／最近／拖放
+    //   三條路都在起始頁完成選檔，位元組經本機 pending 鍵交接，零上傳）。
+    // 探針照舊呼叫 openDefaultSample()／setFileInputFiles，不走這條，零擾動。
+    const params = new URLSearchParams(location.search);
+    if (params.get('sample') === '1') {
+      ui.loadDefaultSample();
+    } else {
+      recentStore.takePending().then((rec) => {
+        if (rec && rec.bytes) ui.loadFile(rec.bytes, rec.name || 'document.docx');
+      }).catch(() => {});
+    }
   });
 }

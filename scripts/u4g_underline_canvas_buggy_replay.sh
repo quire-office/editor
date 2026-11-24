@@ -47,7 +47,7 @@ fi
 
 # 靜態伺服：已在聽則複用，否則自起自收
 SRV_PID=""
-if ! curl -s --max-time 2 "http://127.0.0.1:$PORT/shells/web/editor/index.html" >/dev/null; then
+if ! curl -s --max-time 2 "http://127.0.0.1:$PORT/word.html" >/dev/null; then
   python3 -m http.server "$PORT" --bind 127.0.0.1 >/tmp/u4g_replay_http.log 2>&1 &
   SRV_PID=$!
   sleep 1
@@ -57,7 +57,7 @@ trap cleanup EXIT
 
 run_probe() {
   local expect="$1" # red|green
-  export U4G_URL="http://127.0.0.1:$PORT/shells/web/editor/index.html"
+  export U4G_URL="http://127.0.0.1:$PORT/word.html"
   export CDP_URL="$CDP"
   if [ "$MODE" = buggy ]; then export U4G_BUGGY=1; else unset U4G_BUGGY || true; fi
   node scripts/u4g_underline_canvas_probe.mjs >/tmp/u4g_replay.log 2>&1

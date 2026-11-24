@@ -4,7 +4,7 @@
  * Quire Word UI (U1 窗體骨架) 自檢驗證腳本
  * 
  * 驗收標準：
- * 1. 掃描 index.html 中所有按鈕的 data-requirement 完整性與格式合法性
+ * 1. 掃描 word.html 中所有按鈕的 data-requirement 完整性與格式合法性
  * 2. 檢驗 8 大標籤與 34 個指定群組的覆蓋率
  * 3. 檢驗無外部 CDN、字型或網路依賴（零網路、純本地）
  * 4. 無 DOM 探針驗證：純 Node 環境直接載入 qword-core.js 測試 onCommand 與狀態機
@@ -19,7 +19,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-const HTML_PATH = path.join(ROOT_DIR, 'index.html');
+const HTML_PATH = path.join(ROOT_DIR, 'word.html');
 const CSS_PATH = path.join(ROOT_DIR, 'css/style.css');
 const CORE_JS_PATH = path.join(ROOT_DIR, 'js/qword-core.js');
 const UI_JS_PATH = path.join(ROOT_DIR, 'js/qword-ui.js');
@@ -42,7 +42,7 @@ console.log('='.repeat(70));
 // 1. 檔案存在性檢查
 console.log('\n[檢查 1] 驗證必要外殼檔案存在性...');
 const requiredFiles = [
-  { path: HTML_PATH, desc: '主頁面 HTML (index.html)' },
+  { path: HTML_PATH, desc: '主頁面 HTML (word.html)' },
   { path: CSS_PATH, desc: '樣式表 CSS (css/style.css)' },
   { path: CORE_JS_PATH, desc: '無 DOM 核心邏輯層 (js/qword-core.js)' },
   { path: UI_JS_PATH, desc: 'UI 綁定層 (js/qword-ui.js)' }
@@ -253,7 +253,7 @@ try {
   core.setIndent('firstLine', 1.5);
   assert(core.getState().indents.firstLine === 1.5, 'setIndent 首行縮排計算');
 
-  // 測試 pending 命令日誌紀錄（標籤與 index.html 現行真實缺口同步：
+  // 測試 pending 命令日誌紀錄（標籤與 word.html 現行真實缺口同步：
   // insert:picture 的引擎 M5.1 已入 main，真實缺口是外殼接線＝pending:shell）
   core.onCommand('clipboard:cut', {}, 'pending:shell');
   core.onCommand('insert:picture', {}, 'pending:shell');

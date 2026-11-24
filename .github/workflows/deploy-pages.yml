@@ -46,15 +46,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/css dist/js dist/vendor/pkg
-          cp index.html dist/
+          # C4：index.html=文件庫起始頁（Google Docs 式入口），word.html=Word 工作區
+          cp index.html word.html dist/
           cp -r css/. dist/css/
           cp -r js/. dist/js/
           cp vendor/renderer.js dist/vendor/renderer.js
           cp vendor/pkg/quire_web.js vendor/pkg/quire_web_bg.wasm dist/vendor/pkg/
           printf 'editor.quireoffice.dev\n' > dist/CNAME
           # 部署面完整性：缺任一執行時檔即紅燈，絕不部署半成品
-          for f in index.html css/style.css js/qword-ui.js js/qword-core.js \
-                   js/engine-adapter.js vendor/renderer.js \
+          for f in index.html word.html css/style.css js/qword-ui.js js/qword-core.js \
+                   js/engine-adapter.js js/recent-store.js vendor/renderer.js \
                    vendor/pkg/quire_web.js vendor/pkg/quire_web_bg.wasm CNAME; do
             test -f "dist/$f" || { echo "缺 dist/$f"; exit 1; }
           done

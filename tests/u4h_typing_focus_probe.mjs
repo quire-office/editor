@@ -6,7 +6,7 @@
 // u4c 那類程式化路徑探針對這條缺陷無鑑別力，故必須有本卡。
 //
 // 用法：node tests/u4h_typing_focus_probe.mjs [editor_url]
-//   預帶 http://127.0.0.1:8791/index.html；自起 headless Chrome（獨立 profile
+//   預帶 http://127.0.0.1:8791/word.html；自起 headless Chrome（獨立 profile
 //   ＋專用埠 9224，沿用本倉 u4f 探針自起慣例，不借用戶瀏覽器）。
 // 退出碼：0 全綠；1 任一燈紅（逐盞點名）。
 import fs from 'node:fs';
@@ -16,7 +16,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const BASE_URL = process.env.U4H_URL || process.argv[2] || 'http://127.0.0.1:8791/index.html';
+const BASE_URL = process.env.U4H_URL || process.argv[2] || 'http://127.0.0.1:8791/word.html';
 const CHROME = process.env.CHROME_BIN || '/usr/bin/google-chrome';
 const CDP_PORT = process.env.U4H_CDP_PORT || '9224';
 const CDP_HTTP = `http://127.0.0.1:${CDP_PORT}`;

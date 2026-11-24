@@ -18,7 +18,14 @@ npm start            # 本機靜態伺服器 http://127.0.0.1:8791/
 開發環境若引擎倉有本地建置，可設 `QUIRE_ENGINE_PKG=/path/to/quire/shells/web/pkg`
 讓 fetch 腳本走本機降級（醒目警告「非 release 產物」；CI 嚴禁設定此變數）。
 
-直接以瀏覽器開啟 `index.html` 亦可（ES Module 需经 HTTP，`npm start` 即最簡路徑）。
+直接以瀏覽器開啟頁面亦可（ES Module 需经 HTTP，`npm start` 即最簡路徑）。
+
+**路由契約（C4）**：`index.html` ＝文件庫起始頁（Google Docs 式入口：開啟／
+示範／最近清單／拖放），`word.html` ＝ Word 工作區（原 index.html 改名）。
+未來多格式按路徑段擴展（`/sheet/`、`/slide/` 各自獨立工作區頁）。起始頁把選好
+的檔案位元組經 IndexedDB 的 pending 鍵交棒給 word.html（`?sample=1` 則直接開
+內建示範檔）。最近清單是**本機** IndexedDB 快取：零上傳、移除即真刪、可一鍵清空。
+探針預設路徑已隨動（`http://127.0.0.1:8791/word.html`）。
 
 ## 2. 引擎產物取得契約（分倉的核心邊界）
 
@@ -44,14 +51,15 @@ npm start            # 本機靜態伺服器 http://127.0.0.1:8791/
 即時統計（勿信文件快照，跑這個）：
 
 ```bash
-grep -o 'data-requirement="[^"]*"' index.html | sort | uniq -c | sort -rn
+grep -o 'data-requirement="[^"]*"' word.html | sort | uniq -c | sort -rn
 ```
 
 ## 5. 考卷與探針
 
 - 免瀏覽器節點自檢：`npm run selfcheck`（u1–u4e 七支；讀引擎源碼的斷言需 `QUIRE_ENGINE_REPO=/path/to/quire`，未設則如實點名跳過）。
-- 真瀏覽器探針（`tests/`，需 Chrome `--remote-debugging-port=9222` 與 `npm start` 的 8791 伺服）：Ribbon 逐鈕位移（u4c）、格內 caret 與跑版（u4f）、底線形態畫布幾何（u4g）等；證據 JSON 落 `evidence/`。
-- 圖示精靈：`icons/` 為單一真相源，改圖後 `npm run sprite` 重烘 `index.html` 的 sprite（禁止手改）。
+- 真瀏覽器探針（`tests/`）：Ribbon 逐鈕位移（u4c）、格內 caret 與跑版（u4f）、底線形態畫布幾何（u4g）、**真實輸入路徑打字閉環**（u4h：CDP 真滑鼠＋真鍵盤，驗 focus 不被相容 mousedown 搶走）、起始頁路由與最近清單（u4j）等；證據 JSON 落 `evidence/`。u4h/u4j 自起 headless Chrome（私有埠），u4c/u4f/u4g 走 9222＋`npm start` 的 8791 伺服。
+- **探針鑑別力紀律**：凡驗使用者輸入的考卷必須走 CDP 真事件路徑（程式化 focus／灌值對 focus 搶奪型缺陷零鑑別力，C1 教訓），且交付前做 BUGGY 態驗證（暫時移除修復→探針必紅）才准信任綠燈。
+- 圖示精靈：`icons/` 為單一真相源，改圖後 `npm run sprite` 重烘 `word.html` 的 sprite（禁止手改）。
 
 ## 6. 部署
 

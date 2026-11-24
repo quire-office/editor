@@ -50,7 +50,7 @@ const DOCX = argv.find((a) => !a.startsWith('--')) || process.env.QUIRE_U4F_DOCX
 const JSON_OUT = argOf('--json', null);
 const SHOT_OUT = argOf('--shot', path.join(os.tmpdir(), 'u4f-overlay-shot.png'));
 const CHROME = process.env.CHROME_BIN || '/usr/bin/google-chrome';
-const EDITOR_REL = 'index.html';
+const EDITOR_REL = 'word.html';
 
 if (!DOCX || (DOCX !== 'SAMPLE' && !fs.existsSync(DOCX))) {
   console.error('需要 docx 路徑（argv 或 QUIRE_U4F_DOCX），且檔必須存在。探針不自帶文件。');
@@ -67,7 +67,7 @@ function startServer(rootDir) {
     const urlPath = decodeURIComponent(req.url.split('?')[0]);
     let file = path.normalize(path.join(rootDir, urlPath));
     if (!file.startsWith(rootDir)) { res.writeHead(403); res.end(); return; }
-    if (urlPath.endsWith('/')) file = path.join(file, 'index.html');
+    if (urlPath.endsWith('/')) file = path.join(file, 'word.html');
     fs.readFile(file, (err, buf) => {
       if (err) { res.writeHead(404); res.end('404'); return; }
       res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });

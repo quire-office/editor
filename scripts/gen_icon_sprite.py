@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """圖示精靈產生器：讀 icons/icon-map.json，從 icons/src/<fa>.svg 抽 path，
 產出 editor sprite 的 <symbol> 區間（icons/sprite-symbols.part），
-必要時把 index.html 的 <defs> 精靈整段換裝（--apply）。
+必要時把 word.html 的 <defs> 精靈整段換裝（--apply）。
 
 單一真相源 = icons/（原始 FA svg 本機副本＋映射表＋LICENSE）。
-index.html 的 sprite 是 build 產物，禁止手改——改圖改 icons/ 後重跑本腳本。
+word.html 的 sprite 是 build 產物，禁止手改——改圖改 icons/ 後重跑本腳本。
 """
 import argparse
 import json
@@ -18,7 +18,7 @@ ICONS = os.path.join(EDITOR, "icons")
 SRC = os.path.join(ICONS, "src")
 MAP = os.path.join(ICONS, "icon-map.json")
 PART = os.path.join(ICONS, "sprite-symbols.part")
-INDEX = os.path.join(EDITOR, "index.html")
+INDEX = os.path.join(EDITOR, "word.html")
 
 RE_SVG_OPEN = re.compile(r"<svg[^>]*viewBox=\"([^\"]+)\"[^>]*>")
 RE_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
@@ -61,7 +61,7 @@ def build_symbols() -> str:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--apply", action="store_true", help="把 index.html 的 <defs> 精靈換裝")
+    ap.add_argument("--apply", action="store_true", help="把 word.html 的 <defs> 精靈換裝")
     args = ap.parse_args()
 
     symbols = build_symbols()
@@ -77,10 +77,10 @@ def main() -> None:
         html = open(INDEX, encoding="utf-8").read()
         m = re.search(r"  <defs>\n(.*?)  </defs>", html, re.DOTALL)
         if not m:
-            sys.exit("index.html 找不到 2-縮排 <defs> 區塊")
+            sys.exit("word.html 找不到 2-縮排 <defs> 區塊")
         new_html = html[: m.start(1)] + header + "\n" + symbols + "\n" + html[m.end(1):]
         open(INDEX, "w", encoding="utf-8").write(new_html)
-        print(f"index.html defs 已換裝（{n} symbols）")
+        print(f"word.html defs 已換裝（{n} symbols）")
 
 
 if __name__ == "__main__":

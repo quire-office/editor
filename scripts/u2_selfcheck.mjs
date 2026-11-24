@@ -28,7 +28,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-const HTML_PATH = path.join(ROOT_DIR, 'index.html');
+const HTML_PATH = path.join(ROOT_DIR, 'word.html');
 const CSS_PATH = path.join(ROOT_DIR, 'css/style.css');
 const CORE_JS_PATH = path.join(ROOT_DIR, 'js/qword-core.js');
 const UI_JS_PATH = path.join(ROOT_DIR, 'js/qword-ui.js');
@@ -63,7 +63,7 @@ const requiredFiles = [
   { path: CORE_JS_PATH, desc: '核心邏輯層 (js/qword-core.js)' },
   { path: UI_JS_PATH, desc: 'UI 綁定層 (js/qword-ui.js)' },
   { path: RENDERER_JS_PATH, desc: 'Vendor 繪製器 (vendor/renderer.js)' },
-  { path: HTML_PATH, desc: '外殼頁面 (index.html)' },
+  { path: HTML_PATH, desc: '外殼頁面 (word.html)' },
   { path: CSS_PATH, desc: '樣式表 (css/style.css)' }
 ];
 
@@ -196,7 +196,7 @@ assert(Array.isArray(LIVE_COMMANDS) && LIVE_COMMANDS.length >= 20, 'LIVE_COMMAND
 assert(Array.isArray(TRANSFERRED_LIVE_COMMANDS), 'TRANSFERRED_LIVE_COMMANDS 清單存在');
 console.log(`  - 本卡轉為 live 的指令清單: ${TRANSFERRED_LIVE_COMMANDS.join(', ')}`);
 
-// 審查 index.html 中的轉移按鈕
+// 審查 word.html 中的轉移按鈕
 const saveBtnMatch = htmlContent.match(/<button[^>]+data-command="file:save"[^>]*>/i);
 assert(saveBtnMatch && /data-requirement="live"/i.test(saveBtnMatch[0]), 'file:save 按鈕已正確標記為 live');
 console.log('  ✓ 按鈕 [file:save] 標記為 live (接 save_docx_bytes)');

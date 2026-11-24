@@ -29,7 +29,7 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 const ADAPTER_JS_PATH = path.join(ROOT_DIR, 'js/engine-adapter.js');
 const CORE_JS_PATH = path.join(ROOT_DIR, 'js/qword-core.js');
 const UI_JS_PATH = path.join(ROOT_DIR, 'js/qword-ui.js');
-const HTML_PATH = path.join(ROOT_DIR, 'index.html');
+const HTML_PATH = path.join(ROOT_DIR, 'word.html');
 
 const { EngineAdapter, buildFormatTextRangeMutation } = await import(ADAPTER_JS_PATH);
 const { QWordCore } = await import(CORE_JS_PATH);

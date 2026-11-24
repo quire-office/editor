@@ -46,7 +46,7 @@
  * 用法（worktree 根起靜態伺服；Chrome 需 --remote-debugging-port=9222）：
  *   python3 -m http.server 8791 --bind 127.0.0.1 &
  *   node tests/u4g_underline_canvas_probe.mjs
- * 環境變數：U4G_URL（默認 http://127.0.0.1:8791/index.html）、
+ * 環境變數：U4G_URL（默認 http://127.0.0.1:8791/word.html）、
  *           CDP_URL（默認 http://127.0.0.1:9222）、U4G_OUT（證據 JSON）、
  *           U4G_BUGGY=1（回塞態）、U4G_CALIB=1（校正態：只出實測指紋不判紅綠）。
  */
@@ -56,7 +56,7 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const BASE_URL = process.env.U4G_URL || 'http://127.0.0.1:8791/index.html';
+const BASE_URL = process.env.U4G_URL || 'http://127.0.0.1:8791/word.html';
 const OUT = process.env.U4G_OUT || path.join(ROOT, 'evidence/word-ui-u4g-canvas-evidence.json');
 const CDP_HTTP = process.env.CDP_URL || 'http://127.0.0.1:9222';
 const BUGGY = process.env.U4G_BUGGY === '1';

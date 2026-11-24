@@ -4,7 +4,7 @@
  * AGY-U5: Ribbon 圖示sprite 修復（<g viewBox> 非法 → <symbol>）之真瀏覽器 bbox 探針。
  *
  * 原理：
- * - 以 Node 內建 http 起本機靜態伺服器（port 自動分配），開 shells/web/editor/index.html。
+ * - 以 Node 內建 http 起本機靜態伺服器（port 自動分配），開 word.html。
  * - 以系統 Chrome（--headless=new）＋ CDP（WebSocket）量測每個
  *   <svg class="qword-icon"><use> 的字形 getBBox()，逐 tab 切換後量（隱藏 panel 先顯形）。
  * - 對每個 sprite（<symbol> 或修復前的 <g>）以 1:1 尺度 temp <use> 取得內容實際 span，
@@ -52,7 +52,7 @@ const ROOT = path.resolve(argOf('--root', path.resolve(__dirname, '..')));
 const OUT_DIR = path.resolve(argOf('--out', path.join(os.homedir(), '.quire', 'u5-icon-probe')));
 const JSON_OUT = argOf('--json', null);
 const CHROME = argOf('--chrome', process.env.CHROME_BIN || '/usr/bin/google-chrome');
-const EDITOR_REL = 'index.html';
+const EDITOR_REL = 'word.html';
 const SHOT_TABS = ['tab-home', 'tab-insert', 'tab-design'];
 const OVERFLOW_TOL_PX = 0.5;
 const UNIFORM_TOL = 0.02;      // 等比鎖容差（±2%）
@@ -75,7 +75,7 @@ function startServer(rootDir) {
     const urlPath = decodeURIComponent(req.url.split('?')[0]);
     let file = path.normalize(path.join(rootDir, urlPath));
     if (!file.startsWith(rootDir)) { res.writeHead(403); res.end(); return; }
-    if (urlPath.endsWith('/')) file = path.join(file, 'index.html');
+    if (urlPath.endsWith('/')) file = path.join(file, 'word.html');
     fs.readFile(file, (err, buf) => {
       if (err) { res.writeHead(404); res.end('404'); return; }
       res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
