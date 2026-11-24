@@ -39,7 +39,10 @@ const HTML_PATH = path.join(ROOT_DIR, 'word.html');
 const CORE_JS_PATH = path.join(ROOT_DIR, 'js/qword-core.js');
 const UI_JS_PATH = path.join(ROOT_DIR, 'js/qword-ui.js');
 const ADAPTER_JS_PATH = path.join(ROOT_DIR, 'js/engine-adapter.js');
-const MUTATION_RS_PATH = path.join(process.env.QUIRE_ENGINE_REPO || '', 'core/engine-api/src/mutation.rs');
+// 引擎源碼斷言（跨倉）：設了 QUIRE_ENGINE_REPO 才查；獨立倉無引擎源碼時屬預期跳過
+// （u2 同型口徑；CI 請設此變數跑全斷言——分倉後未設曾讓本卡整支 crash）。
+const ENGINE_REPO = process.env.QUIRE_ENGINE_REPO || '';
+const MUTATION_RS_PATH = path.join(ENGINE_REPO, 'core/engine-api/src/mutation.rs');
 const WASM_JS_PATH = path.join(ROOT_DIR, 'vendor/pkg/quire_web.js');
 
 let pass = true;
@@ -67,10 +70,17 @@ console.log('='.repeat(70));
 console.log('\n[檢查 1] 必要外殼檔案與 Wasm 產物存在性...');
 for (const [label, p] of [
   ['word.html', HTML_PATH], ['qword-core.js', CORE_JS_PATH], ['qword-ui.js', UI_JS_PATH],
-  ['engine-adapter.js', ADAPTER_JS_PATH], ['mutation.rs（欄位真相來源）', MUTATION_RS_PATH],
+  ['engine-adapter.js', ADAPTER_JS_PATH],
   ['quire_web.js', WASM_JS_PATH], ['quire_web_bg.wasm', path.join(ROOT_DIR, 'vendor/pkg/quire_web_bg.wasm')]
 ]) {
   assert(fs.existsSync(p), `缺少必要檔案：${label}（${p}）`);
+}
+const HAS_ENGINE_SRC = !!ENGINE_REPO;
+if (HAS_ENGINE_SRC) {
+  assert(fs.existsSync(MUTATION_RS_PATH), `缺少必要檔案：mutation.rs（${MUTATION_RS_PATH}）`);
+} else {
+  warnings.push('未設 QUIRE_ENGINE_REPO：跳過引擎源碼斷言（mutation.rs 欄位逐欄比對）——獨立倉屬預期，CI 請設此變數以跑全斷言');
+  console.log('  - mutation.rs 欄位斷言（引擎倉源碼）：未設 QUIRE_ENGINE_REPO，跳過');
 }
 console.log('  ✓ 必要檔案齊備');
 
@@ -78,11 +88,12 @@ const adapterSrc = fs.readFileSync(ADAPTER_JS_PATH, 'utf-8');
 const uiSrc = fs.readFileSync(UI_JS_PATH, 'utf-8');
 const coreSrc = fs.readFileSync(CORE_JS_PATH, 'utf-8');
 const htmlSrc = fs.readFileSync(HTML_PATH, 'utf-8');
-const mutationRs = fs.readFileSync(MUTATION_RS_PATH, 'utf-8');
+const mutationRs = HAS_ENGINE_SRC ? fs.readFileSync(MUTATION_RS_PATH, 'utf-8') : '';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // [檢查 2] 欄位名不靠猜：逐欄對 mutation.rs 宣告
 // ─────────────────────────────────────────────────────────────────────────────
+if (HAS_ENGINE_SRC) {
 console.log('\n[檢查 2] Mutation 欄位名與 mutation.rs 宣告逐欄比對...');
 
 /**
@@ -155,6 +166,9 @@ for (const [name, fields] of [['TablePropsPatch', tablePatchFields], ['CellProps
 assert(/pub\s+borders:\s*Option<TableBordersPatch>/.test(mutationRs),
   'mutation.rs 的 borders 欄位需為具型別 TableBordersPatch（若退化成自由欄位代表引擎契約又變了，需重估）');
 console.log('  ✓ 邊框欄位實態：TablePropsPatch／CellPropsPatch 具 borders: Option<TableBordersPatch>（E 卡），外殼仍未接線');
+} else {
+  console.log('  - （跳過：未設 QUIRE_ENGINE_REPO，引擎欄位真相斷言未跑）');
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // [檢查 3] adapter build*Mutation 契約（欄位名逐欄核）

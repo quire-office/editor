@@ -40,8 +40,10 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 const ADAPTER_JS_PATH = path.join(ROOT_DIR, 'js/engine-adapter.js');
 const CORE_JS_PATH = path.join(ROOT_DIR, 'js/qword-core.js');
 const UI_JS_PATH = path.join(ROOT_DIR, 'js/qword-ui.js');
-const MUTATION_RS_PATH = path.join(process.env.QUIRE_ENGINE_REPO || '', 'core/engine-api/src/mutation.rs');
-const SHELL_RS_PATH = path.join(process.env.QUIRE_ENGINE_REPO || '', 'shells/web/src/lib.rs');
+// 引擎源碼斷言（跨倉）：設了 QUIRE_ENGINE_REPO 才查（u2/u4 同型口徑）。
+const ENGINE_REPO = process.env.QUIRE_ENGINE_REPO || '';
+const MUTATION_RS_PATH = path.join(ENGINE_REPO, 'core/engine-api/src/mutation.rs');
+const SHELL_RS_PATH = path.join(ENGINE_REPO, 'shells/web/src/lib.rs');
 
 let pass = true;
 const errors = [];
@@ -82,8 +84,8 @@ console.log('='.repeat(72));
 const adapterSrc = fs.readFileSync(ADAPTER_JS_PATH, 'utf-8');
 const coreSrc = fs.readFileSync(CORE_JS_PATH, 'utf-8');
 const uiSrc = fs.readFileSync(UI_JS_PATH, 'utf-8');
-const mutationRs = fs.readFileSync(MUTATION_RS_PATH, 'utf-8');
-const shellRs = fs.readFileSync(SHELL_RS_PATH, 'utf-8');
+const mutationRs = ENGINE_REPO ? fs.readFileSync(MUTATION_RS_PATH, 'utf-8') : '';
+const shellRs = ENGINE_REPO ? fs.readFileSync(SHELL_RS_PATH, 'utf-8') : '';
 const J = (x) => JSON.stringify(x);
 
 const adapterModule = await import(ADAPTER_JS_PATH);
@@ -124,6 +126,7 @@ function shapeProbeLocks(adapter) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 await lamp('檢查 0｜真索引綁定前提', async () => {
+  if (!ENGINE_REPO) { okLog('  - （跳過：未設 QUIRE_ENGINE_REPO，引擎源碼前提斷言未跑）'); return; }
   for (const fn of ['table_count', 'tables_summary_json', 'table_locator_json']) {
     assert(new RegExp(`pub fn ${fn}\\s*\\(`).test(shellRs),
       `shells/web/src/lib.rs 未綁 ${fn}()——撤除越界探針的前提失效`);
