@@ -1,6 +1,15 @@
 {
-  "name": "qword-editor-shell",
+  "name": "quire-editor",
   "version": "0.1.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "description": "Quire 文書編輯器外殼（Ribbon 零構建靜態殼；引擎 wasm 經引擎倉 release 資產釘板取得）",
+  "license": "Apache-2.0",
+  "scripts": {
+    "fetch:wasm": "node scripts/fetch-wasm.mjs",
+    "prestart": "node scripts/fetch-wasm.mjs",
+    "start": "python3 -m http.server 8791 --bind 127.0.0.1",
+    "sprite": "python3 scripts/gen_icon_sprite.py --apply",
+    "selfcheck": "node scripts/wordui_u1_selfcheck.mjs && node scripts/u2_selfcheck.mjs && node scripts/u3_selfcheck.mjs && node scripts/u4_selfcheck.mjs && node scripts/u4b_selfcheck.mjs && node scripts/u4d_selfcheck.mjs && node scripts/u4e_selfcheck.mjs"
+  }
 }

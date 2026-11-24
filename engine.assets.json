@@ -1,0 +1,20 @@
+{
+  "$schema": "編輯器外殼的引擎 wasm 資產清單（進 git 的唯一信任來源）",
+  "version": "0.1.0-beta.13",
+  "release_url_template": "https://github.com/quire-office/quire/releases/download/v{version}/{file}",
+  "local_fallback_dir": "QUIRE_ENGINE_PKG",
+  "local_fallback_hint": "設 QUIRE_ENGINE_PKG=/path/to/quire/shells/web/pkg 允許本機引擎建置降級（僅開發用，CI 禁用）",
+  "target_dir": "vendor/pkg/",
+  "assets": [
+    {
+      "file": "quire_web_bg.wasm",
+      "sha256": "796c61382fcd2831213174dff32a3b40930fc994d4c54ee683cfbe8a5d42ab88",
+      "note": "引擎 wasm（CI 建置，v0.1.0-beta.13；raw 2,516,257 bytes／gzip 1,257,858 bytes）。"
+    },
+    {
+      "file": "quire_web.js",
+      "sha256": "bd85b9fd73c81018259bac49e5ffcaba11a14fbdb746779d93655c76486b82ce",
+      "note": "wasm-bindgen 膠水層（ESM），必須與 wasm 同版本。"
+    }
+  ]
+}

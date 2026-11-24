@@ -9,8 +9,8 @@
  *
  * 用法（repo 根起靜態伺服；Chrome 需 --remote-debugging-port=9222）：
  *   python3 -m http.server 8791 --bind 127.0.0.1 &
- *   node shells/web/editor/tests/u4c_ribbon_probe.mjs
- * 環境變數：U4C_URL（默認 http://127.0.0.1:8791/shells/web/editor/index.html）、
+ *   node tests/u4c_ribbon_probe.mjs
+ * 環境變數：U4C_URL（默認 http://127.0.0.1:8791/index.html）、
  *           CDP_URL（默認 http://127.0.0.1:9222）、U4C_OUT（證據 JSON 路徑）。
  *
  * 判定口徑：
@@ -25,9 +25,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const BASE_URL = process.env.U4C_URL || 'http://127.0.0.1:8791/shells/web/editor/index.html';
-const OUT = process.env.U4C_OUT || path.join(ROOT, 'docs/word-ui-u4c-ribbon-evidence.json');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const BASE_URL = process.env.U4C_URL || 'http://127.0.0.1:8791/index.html';
+const OUT = process.env.U4C_OUT || path.join(ROOT, 'evidence/word-ui-u4c-ribbon-evidence.json');
 const CDP_HTTP = process.env.CDP_URL || 'http://127.0.0.1:9222';
 
 /** 頁面 main world 內執行（序列化注入，禁閉包引用；baseUrl 由 CDP 端傳參）。 */

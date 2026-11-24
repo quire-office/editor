@@ -8,7 +8,15 @@
  * 5. 游標與座標反查 (caretAt, caretRect) 及版面定案狀態 (isSettled, reflowStep)
  */
 
-import init, { initSync, WasmEngine } from '../../pkg/quire_web.js';
+import init, { initSync, WasmEngine } from '../vendor/pkg/quire_web.js';
+
+/**
+ * wasm 產物取得契約（分倉後的新形態，見 README「引擎產物取得」）：
+ * 引擎二進位嚴禁進本倉，由 npm run fetch:wasm 依 engine.assets.json 從引擎 repo
+ * release 資產（或本機引擎 checkout 降級）取得並放進 vendor/pkg/，sha256 校驗。
+ * 瀏覽器路徑由 wasm-bindgen 膠水層以 import.meta.url 相對定位（vendor/pkg/），
+ * 部署時該目錄即站點靜態目錄；無產物時 init() 必然失敗並由上層顯示補救指示。
+ */
 import {
   DEFAULT_DISPLAY_WIDTH_PX,
   renderDisplayListToCanvas,
@@ -812,7 +820,7 @@ export class EngineAdapter {
       const path = await import('node:path');
       const wasmPath = path.resolve(
         path.dirname(new URL(import.meta.url).pathname),
-        '../../pkg/quire_web_bg.wasm'
+        '../vendor/pkg/quire_web_bg.wasm'
       );
       const wasmBytes = fs.readFileSync(wasmPath);
       initSync({ module: wasmBytes });

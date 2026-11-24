@@ -1,108 +1,58 @@
-# Quire 文書編輯器外殼原型（U1 窗體骨架）
+# Quire 文書編輯器外殼
 
-本目錄提供一個視覺上對齊 傳統桌上型文書處理器 Ribbon 佈局風格的靜態原型外殼，零構建（zero-build）、零網路請求、零第三方依賴，旨在作為 Quire 排版與編輯引擎後續接軌的桌面型使用者介面骨架。
+Quire 文書編輯器的瀏覽器外殼：視覺上對齊傳統桌上型文書處理器 Ribbon 佈局的零構建（zero-build）靜態應用，零第三方依賴、零 CDN，透過本倉的引擎適配層直連 Quire 排版引擎的 WebAssembly 產物，完成開檔、打字、格式化、表格操作與存檔的真實編輯閉環。
+
+本倉於 roadmap 的「外殼分倉」條款自引擎倉（`quire-office/quire` 的 `shells/web/editor/`）獨立而來，歷史經 `git subtree split` 完整保留。線上部署：`https://editor.quireoffice.dev`。
 
 ---
 
-## 1. 如何開啟與檢視
+## 1. 快速開始
 
-### 本地瀏覽器直接開啟（最簡方式）
-本原型完全採用靜態標準 HTML5、CSS 與純 JavaScript（原生 ES Module），無需任何 `npm install` 或編譯流程。
-可以直接以任一現代瀏覽器開啟主頁面：
+引擎 wasm 產物**嚴禁進本倉**（含 git 歷史）。 clone 後第一步先取得產物：
 
 ```bash
-# Linux
-xdg-open shells/web/editor/index.html
-
-# macOS
-open shells/web/editor/index.html
-
-# Windows
-start shells/web/editor/index.html
+npm run fetch:wasm   # 依 engine.assets.json 自引擎倉 GitHub release 下載＋sha256 校驗
+npm start            # 本機靜態伺服器 http://127.0.0.1:8791/
 ```
 
-### 透過本地 HTTP 伺服器開啟
-若偏好透過 HTTP 協定瀏覽：
+開發環境若引擎倉有本地建置，可設 `QUIRE_ENGINE_PKG=/path/to/quire/shells/web/pkg`
+讓 fetch 腳本走本機降級（醒目警告「非 release 產物」；CI 嚴禁設定此變數）。
+
+直接以瀏覽器開啟 `index.html` 亦可（ES Module 需经 HTTP，`npm start` 即最簡路徑）。
+
+## 2. 引擎產物取得契約（分倉的核心邊界）
+
+- `engine.assets.json` 是唯一信任來源：釘死引擎版本與每個產物的 sha256。
+- `scripts/fetch-wasm.mjs` 的降級鏈：release 下載 →（僅開發）本機引擎 pkg → 佔位說明檔。sha256 不符即死，絕不混入壞資產。
+- 升版流程：引擎倉發 release → 更新 `engine.assets.json` 的 version 與 sha256 → `npm run fetch:wasm` 驗證 → 提交清單變更。外殼倉不追引擎 main 的浮動產物。
+
+## 3. 架構與事件匯流排
+
+1. **純邏輯層 (`js/qword-core.js`)**：零 DOM 依賴，可在 Node.js 直接 `import` 做無頭驗證；`QWordCore` 管理標籤、檢視模式、縮放、標尺與指令日誌，入口為 `onCommand(cmdId, payload, requirement)`。
+2. **DOM 綁定層 (`js/qword-ui.js`)**：事件委派、Ribbon 鍵盤導航、標尺滑桿、縮放、彈出層；掛載 `window.QWordShell` 與 `window.__qwordLog`。
+3. **引擎適配層 (`js/engine-adapter.js`)**：wasm 初始化（`vendor/pkg/`）、開檔／多頁 Canvas 繪製、Mutation 呼叫（打字、格式、表格、圖片、節）、Undo/Redo、游標反查，以及 wasm 邊界的誠實底線（引擎回傳字串兩級正規化，壞字串炸成「這次操作失敗」而非整個外殼無回應）。
+4. **繪製器 (`vendor/renderer.js`)**：與官網 playground 共用同一顯示列表繪製器（來源登記見 `vendor/SYNC.md`），避免雙實作漂移。
+
+探針可經 `window.QWordShell.onCommand(...)` 派發命令、`getState()` 讀狀態、`window.__qwordLog` 讀日誌。
+
+## 4. 產品誠實紅線
+
+每顆按鈕帶 `data-requirement`：
+- `live`：外殼已真接引擎 Mutation 或外殼自身真功能。
+- `pending:<卡>`：**可見但停用**，tooltip 如實說明缺口在引擎側哪張切片。引擎沒實作的（校閱面、參考資料面、主題面等）絕不假裝可用、絕不藏按鈕。
+
+即時統計（勿信文件快照，跑這個）：
 
 ```bash
-# 在 worktree 根目錄啟動簡易靜態伺服器
-python3 -m http.server 8080
-
-# 瀏覽器訪問：
-# http://localhost:8080/shells/web/editor/index.html
+grep -o 'data-requirement="[^"]*"' index.html | sort | uniq -c | sort -rn
 ```
 
----
+## 5. 考卷與探針
 
-## 2. 架構設計與內部事件匯流排
+- 免瀏覽器節點自檢：`npm run selfcheck`（u1–u4e 七支；讀引擎源碼的斷言需 `QUIRE_ENGINE_REPO=/path/to/quire`，未設則如實點名跳過）。
+- 真瀏覽器探針（`tests/`，需 Chrome `--remote-debugging-port=9222` 與 `npm start` 的 8791 伺服）：Ribbon 逐鈕位移（u4c）、格內 caret 與跑版（u4f）、底線形態畫布幾何（u4g）等；證據 JSON 落 `evidence/`。
+- 圖示精靈：`icons/` 為單一真相源，改圖後 `npm run sprite` 重烘 `index.html` 的 sprite（禁止手改）。
 
-外殼程式碼遵循純邏輯層與 DOM 表現層解耦設計：
+## 6. 部署
 
-1. **純邏輯層 (`js/qword-core.js`)**：
-   - 零 DOM 依賴（無 `window`、`document` 等全域物件），可在 Node.js 環境中直接 `import` 進行無頭（headless）單元測試與探針驗證。
-   - 內建 `QWordCore` 類別，管理標籤狀態、檢視模式（閱讀/列印/Web）、縮放比例（60%–180%）、標尺邊界與縮排量、以及指令歷史日誌。
-   - 核心分發入口為 `onCommand(cmdId, payload, requirement)`。
-
-2. **DOM 綁定與呈現層 (`js/qword-ui.js`)**：
-   - 負責 DOM 事件委派、Ribbon 標籤與鍵盤方向鍵導航（支援 ArrowLeft、ArrowRight、Home、End）。
-   - 標尺滑桿（首行縮排、懸掛縮排、左縮排、右縮排）拖曳互動與畫布輔助對齊虛線。
-   - 縮放滑桿與畫布 CSS 等比變換 (`transform: scale(...)`)。
-   - 互動彈出層（8×5 表格選擇器、特殊字元符號面板、色彩挑選器、說明對話方塊）。
-   - 掛載全域對象 `window.QWordShell` 與 `window.__qwordLog`。
-
-### 事件匯流排呼叫介面
-任何自外部注入或自動化測試探針皆可透過 `window.QWordShell` 觸發命令：
-
-```javascript
-// 派發命令
-window.QWordShell.onCommand('zoom:in');
-window.QWordShell.onCommand('tab:switch:tab-insert');
-window.QWordShell.onCommand('clipboard:cut', {}, 'pending:K29a');
-
-// 取得當前核心狀態
-const state = window.QWordShell.getState();
-console.log(state.activeTabId, state.zoom, state.viewMode);
-
-// 讀取指令歷史日誌
-console.log(window.__qwordLog);
-```
-
----
-
-## 3. 產品誠實紅線：命令依賴與停用態清單
-
-所有按鈕與指令皆帶有明確的 `data-requirement` 屬性標記：
-- `live`：現有外殼已具備之互動能力（如標籤切換、縮放、檢視模式切換、標尺開關、表格網格與符號面板預覽）。
-- `pending:<依賴卡>`：Quire 引擎尚在開發中之能力。按鈕呈現為**可見但停用**（半透明置灰、游標為 `not-allowed`、hover 浮現 Tooltip 說明等待之後續卡號）。絕不假裝可用，亦不隱藏功能。
-
-### 依賴卡片對照與命令統計
-
-| 需求代碼 | 依賴卡片名稱與說明 | 按鈕數量 | 代表性指令 |
-| :--- | :--- | :---: | :--- |
-| `live` | **外殼與檢視既有能力**<br>標籤切換、縮放 60–180%、頁寬適配、閱讀/列印/Web 配置切換、標尺切換與刻度拖曳、8×5 表格選擇器、特殊符號面板 | 31 | `tab:switch:*`, `zoom:*`, `view:mode:*`, `ruler:toggle`, `table:grid-select`, `symbol:palette-select` |
-| `pending:K29a` | **K29a 基礎編輯與格式化**<br>文字選取、剪貼簿、字型字號、粗斜底刪、上標下標、字型色彩、段落對齊、清單、行距、縮排、尋找取代 | 44 | `clipboard:paste`, `format:bold`, `format:font-color`, `paragraph:align-left`, `editing:replace` |
-| `pending:K29b` | **K29b 物件與插入引擎**<br>封面頁、分頁符號、實體表格插入、圖片、形狀、SmartArt、圖表、文字方塊、直書文字、頁首頁尾、超連結 | 21 | `insert:picture`, `insert:shapes`, `insert:header`, `insert:footer`, `insert:textbox`, `insert:hyperlink` |
-| `pending:K29c` | **K29c 版面與樣式系統**<br>主題、樣式集、自訂樣式庫套用、頁面邊界、紙張直橫向、多欄排版、頁面框線、浮水印、文繞圖、物件對齊 | 40 | `style:h1`, `style:normal`, `layout:margins`, `layout:orientation`, `layout:columns`, `layout:wrap-text` |
-| `pending:K29d` | **K29d 校對與審閱協同**<br>拼字語法檢查、同義字辭典、字數統計、翻譯、註解/批註增修、追蹤修訂與接受/拒絕、文件編輯保護 | 22 | `review:spelling-grammar`, `review:thesaurus`, `review:new-comment`, `review:track-changes`, `review:restrict-editing` |
-| `pending:K29e` | **K29e 參考資料與文獻**<br>自動目錄生成與更新、註腳與章節附註、APA/MLA 引文與書目、圖表題注與圖表目錄、索引項目標記 | 21 | `references:toc`, `references:insert-footnote`, `references:insert-citation`, `references:insert-caption`, `references:mark-entry` |
-| `pending:K29s` | **K29s 視窗與多重視圖**<br>開新視窗、多重視窗重排、視窗水平分割、切換視窗 | 4 | `window:new`, `window:arrange-all`, `window:split`, `window:switch` |
-| `pending:K29m` | **K29m 巨集與腳本擴充**<br>VBA / JavaScript 巨集錄製與執行管理 | 1 | `macro:view` |
-| `pending:K29f` | **K29f 檔案與協同傳輸**<br>本機與雲端儲存、線上共用分享 | 3 | `file:save`, `file:menu`, `doc:share` |
-| `pending:K29u` | **K29u 支援與說明連線**<br>連絡線上技術支援、使用者意見反饋、線上教學資源 | 4 | `help:contact-support`, `help:feedback`, `help:show-training`, `qat:customize` |
-
----
-
-## 4. 自動化自檢驗證
-
-工作區提供 `scripts/wordui_u1_selfcheck.mjs` 腳本，可自動驗證全部規格：
-
-```bash
-node scripts/wordui_u1_selfcheck.mjs
-```
-
-驗證範圍包括：
-1. 外殼必要檔案存在性與路徑正確。
-2. 零外部網路依賴（零 CDN、零外部字型、零遠端 API）。
-3. 100% 按鈕皆具備合法 `data-requirement` 與 `aria-label`。
-4. 8 大 Ribbon 標籤與 34 個指定群組之 DOM 結構完整性。
-5. Node.js ESM 無 DOM 環境直接載入 `qword-core.js` 執行指令與狀態驗證。
+`.github/workflows/deploy-pages.yml`：fetch:wasm → 七支節點自檢（引擎源碼斷言用引擎倉 shallow checkout）→ 組裝 `dist/`（只含執行時靜態檔＋CNAME）→ GitHub Pages。缺任一執行時檔即紅燈，不部署半成品。

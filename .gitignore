@@ -1,0 +1,6 @@
+# 引擎 wasm 產物嚴禁進倉：一律經 npm run fetch:wasm 依 engine.assets.json
+# 從引擎 repo release 資產取得（開發環境可設 QUIRE_ENGINE_PKG 本機降級）。
+vendor/pkg/
+node_modules/
+*.log
+evidence/

@@ -1,0 +1,73 @@
+name: deploy-pages
+# 編輯器外殼：零構建靜態站 → GitHub Pages（自訂網域 editor.quireoffice.dev）。
+# Pages 於首次成功部署自動啟用；自訂網域走 artifact 根 CNAME + DNS（Cloudflare）。
+# 引擎 wasm 產物嚴禁進倉：prebuild 由 scripts/fetch-wasm.mjs 依 engine.assets.json
+# 自引擎 repo 的 GitHub release 下載並 sha256 校驗（CI 不設 QUIRE_ENGINE_PKG，
+# 故本機降級鏈在 CI 必然關閉）。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 取得引擎 wasm 產物（release 資產＋sha256 校驗）
+        run: node scripts/fetch-wasm.mjs
+
+      - name: 外殼節點自檢（免瀏覽器閘門；引擎源碼斷言需引擎倉 checkout）
+        run: |
+          git clone --depth 1 https://github.com/quire-office/quire.git /tmp/quire-engine
+          export QUIRE_ENGINE_REPO=/tmp/quire-engine
+          node scripts/wordui_u1_selfcheck.mjs
+          node scripts/u2_selfcheck.mjs
+          node scripts/u3_selfcheck.mjs
+          node scripts/u4_selfcheck.mjs
+          node scripts/u4b_selfcheck.mjs
+          node scripts/u4d_selfcheck.mjs
+          node scripts/u4e_selfcheck.mjs
+
+      - name: 組裝部署目錄 dist/（只放執行時需要的靜態檔）
+        run: |
+          set -euo pipefail
+          mkdir -p dist/vendor/pkg
+          cp index.html dist/
+          cp -r css js vendor/renderer.js dist/
+          cp vendor/pkg/quire_web.js vendor/pkg/quire_web_bg.wasm dist/vendor/pkg/
+          printf 'editor.quireoffice.dev\n' > dist/CNAME
+          # 部署面完整性：缺任一執行時檔即紅燈，絕不部署半成品
+          for f in index.html css/style.css js/qword-ui.js js/qword-core.js \
+                   js/engine-adapter.js vendor/renderer.js \
+                   vendor/pkg/quire_web.js vendor/pkg/quire_web_bg.wasm CNAME; do
+            test -f "dist/$f" || { echo "缺 dist/$f"; exit 1; }
+          done
+          ls -la dist dist/vendor/pkg
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

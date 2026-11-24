@@ -1,5 +1,5 @@
 // E-2b 共型收尾探針：底線 serde 線契約遷移的真 wasm 閉環（node，零瀏覽器變因）。
-// 位置：shells/web/editor/tests/（U4b 同款正式探針位，非暫存檔）；repo 根向上四層。
+// 位置：tests/（U4b 同款正式探針位，非暫存檔）；repo 根即上一層。
 //
 // 驗證四事（考卷 e2b_underline_shared_type 的殼側鏡像，引擎已鎖的这里只驗通路）：
 //   P1 canonical 小寫寫入真通（thick 共型紅利逐字查 XML）；
@@ -9,8 +9,8 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const ADAPTER = path.join(ROOT, 'shells/web/editor/js/engine-adapter.js');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ADAPTER = path.join(ROOT, 'js/engine-adapter.js');
 const { EngineAdapter, normalizeUnderlineKind } = await import(ADAPTER);
 
 let fails = 0;

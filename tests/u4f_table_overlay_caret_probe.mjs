@@ -29,7 +29,7 @@
  *     硬閘：逐條格內行用自己的幾何反查必還原同段同 cp（100%），未滿即紅。
  *   退出碼：0 全綠；1 有紅燈；2 探針自身錯誤。
  *
- * 用法：node shells/web/editor/tests/u4f_table_overlay_caret_probe.mjs [docx路徑] [--json F] [--shot F]
+ * 用法：node tests/u4f_table_overlay_caret_probe.mjs [docx路徑] [--json F] [--shot F]
  * 預設 docx：$QUIRE_U4F_DOCX，或 repo 根的 user-sample 不存在時直接報錯退出 2
  * （本探針刻意不把任何用戶文件拷進 repo——隱私鐵律）。
  */
@@ -40,7 +40,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
 function argOf(flag, dflt) {
   const i = argv.indexOf(flag);
@@ -50,7 +50,7 @@ const DOCX = argv.find((a) => !a.startsWith('--')) || process.env.QUIRE_U4F_DOCX
 const JSON_OUT = argOf('--json', null);
 const SHOT_OUT = argOf('--shot', path.join(os.tmpdir(), 'u4f-overlay-shot.png'));
 const CHROME = process.env.CHROME_BIN || '/usr/bin/google-chrome';
-const EDITOR_REL = 'shells/web/editor/index.html';
+const EDITOR_REL = 'index.html';
 
 if (!DOCX || (DOCX !== 'SAMPLE' && !fs.existsSync(DOCX))) {
   console.error('需要 docx 路徑（argv 或 QUIRE_U4F_DOCX），且檔必須存在。探針不自帶文件。');

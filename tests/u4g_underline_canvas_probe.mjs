@@ -45,8 +45,8 @@
  *
  * 用法（worktree 根起靜態伺服；Chrome 需 --remote-debugging-port=9222）：
  *   python3 -m http.server 8791 --bind 127.0.0.1 &
- *   node shells/web/editor/tests/u4g_underline_canvas_probe.mjs
- * 環境變數：U4G_URL（默認 http://127.0.0.1:8791/shells/web/editor/index.html）、
+ *   node tests/u4g_underline_canvas_probe.mjs
+ * 環境變數：U4G_URL（默認 http://127.0.0.1:8791/index.html）、
  *           CDP_URL（默認 http://127.0.0.1:9222）、U4G_OUT（證據 JSON）、
  *           U4G_BUGGY=1（回塞態）、U4G_CALIB=1（校正態：只出實測指紋不判紅綠）。
  */
@@ -55,9 +55,9 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const BASE_URL = process.env.U4G_URL || 'http://127.0.0.1:8791/shells/web/editor/index.html';
-const OUT = process.env.U4G_OUT || path.join(ROOT, 'docs/word-ui-u4g-canvas-evidence.json');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const BASE_URL = process.env.U4G_URL || 'http://127.0.0.1:8791/index.html';
+const OUT = process.env.U4G_OUT || path.join(ROOT, 'evidence/word-ui-u4g-canvas-evidence.json');
 const CDP_HTTP = process.env.CDP_URL || 'http://127.0.0.1:9222';
 const BUGGY = process.env.U4G_BUGGY === '1';
 const CALIB = process.env.U4G_CALIB === '1'; // 校正態：不判紅綠、只出實測指紋（門檻定值用）
@@ -213,7 +213,7 @@ async function runInPage(baseUrl, buggy, opts) {
   if (!adapter().engine) throw new Error('開檔失敗：引擎實例未建立');
   await sleep(400);
 
-  const renderer = await import('/shells/web/editor/vendor/renderer.js');
+  const renderer = await import('/vendor/renderer.js');
   const canvasOf = (pageIdx) => document.querySelector(`[data-page-index="${pageIdx}"] .qword-page-canvas`);
 
   // ---- 目標段定位：para 1 首段 Text 項（U4b/U4f 同款錨點「這是一份」）----
@@ -478,7 +478,7 @@ async function runInPage(baseUrl, buggy, opts) {
 
   // D) 雙端同步鎖：源碼常數逐字（本頁 fetch，非 node fs——同源口徑）
   {
-    const src = await (await fetch('/shells/web/editor/vendor/renderer.js')).text();
+    const src = await (await fetch('/vendor/renderer.js')).text();
     const grab = (re) => { const m = src.match(re); return m ? m[0].replace(/\s+/g, ' ') : null; };
     R.notes.geomSource = {
       double: grab(/double:\s*\{[^}]*\}/),
@@ -496,7 +496,7 @@ async function runInPage(baseUrl, buggy, opts) {
 // ---- CDP 骨架（U4c/U4f 同款）----
 async function main() {
   // node 端先產讀取端保形 fixture（頁面經 http 取）
-  const { getDefaultSampleBytes } = await import(path.join(ROOT, 'shells/web/editor/js/engine-adapter.js'));
+  const { getDefaultSampleBytes } = await import(path.join(ROOT, 'js/engine-adapter.js'));
   const wavy = buildWavyDocx(getDefaultSampleBytes());
   fs.mkdirSync(path.dirname(path.join(ROOT, WAVY_FIXTURE_REL)), { recursive: true });
   fs.writeFileSync(path.join(ROOT, WAVY_FIXTURE_REL), wavy);
