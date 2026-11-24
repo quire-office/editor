@@ -384,6 +384,15 @@ export class QWordUI {
       this.pageContainer.addEventListener('pointerdown', (e) => {
         const realPage = e.target.closest('.qword-real-page');
         if (!realPage || !this.adapter.engine) return;
+        // C1 修復（真點擊無法打字根因，實測事件軌跡坐實）：真實滑鼠輸入下
+        // pointerdown 之後瀏覽器仍派發相容 mousedown，其**預設行為按命中測試
+        // 把焦點收回 body**——pointerdown handler 同步呼叫的 inputSink.focus()
+        // 先成功（focusin 實錄）再被这道预設撤銷（blur→BODY 實錄），真鍵盤
+        // 事件全部落空（探針走程式化 focus 路徑所以綠，放過了這條）。
+        // 注意：pointerdown 上的 preventDefault() **擋不住**相容 mouse 事件
+        // （那是 touch 語義），必須在 mousedown 本身拦——見下方 mousedown
+        // 監聽。代價是原生文字選取/拖曳預設一併禁用——本外殼的跨段選取由
+        // pointermove 自行實作（自繪 selection rect），本來就不依賴原生選取。
 
         const pageIndex = parseInt(realPage.getAttribute('data-page-index'), 10);
         const canvas = realPage.querySelector('.qword-page-canvas');
@@ -410,6 +419,15 @@ export class QWordUI {
           this.inputSink.focus();
         }
       });
+
+      // C1 修復本體：相容 mousedown 的預設行為（命中測試後把焦點收回 body）
+      // 才是撤銷焦點的元兇，pointerdown 上的 preventDefault 擋不住它，
+      // 必須在 mousedown 本身（捕獲期）掐掉預設。
+      this.pageContainer.addEventListener('mousedown', (e) => {
+        if (e.target && e.target.closest && e.target.closest('.qword-real-page')) {
+          e.preventDefault();
+        }
+      }, true);
 
       this.pageContainer.addEventListener('pointermove', (e) => {
         if (!isPointerDown || !startPos || !this.adapter.engine) return;
@@ -1466,7 +1484,7 @@ export class QWordUI {
         html += `<span class="qword-tooltip-req">⚠️ 需要編輯 API（開發中: ${depInfo.name}）</span>`;
       }
     } else if (req === 'live') {
-      html += `<span style="display:block;font-size:9px;color:#85e085;margin-top:2px;">● 現已可用（真引擎/檢視能力）</span>`;
+      html += `<span style="display:block;font-size:9px;color:#85e085;margin-top:2px;">● 此鈕即時生效（本檔內真實執行）</span>`;
     }
 
     this.tooltipEl.innerHTML = html;
