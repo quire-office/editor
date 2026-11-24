@@ -4,3 +4,4 @@ vendor/pkg/
 node_modules/
 *.log
 evidence/
+tmp/
