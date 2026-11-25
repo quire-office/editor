@@ -396,7 +396,8 @@ try {
     // 行高不膨脹的判據（比照 u4b_selfcheck 檢查 4 的口徑）：僅被套上下標的
     // 那行基線位移，其後各行絕對 y 逐位不動——若行高膨脹，其後全部行會
     // cumulatively 下推（LO 真值 pitch 恆定；卡面「改行高」舊前提已被探針推翻）。
-    k.caret = { para: 1, cp: 0 };
+    k.caret = { para: 1, cp: 0 }; // U4l：字元格式需圈選（整段圈選＝合法態，本段驗引擎鏈非局部性）
+    k.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: (() => { const L = Array.from(k.paragraphText(1) || '').length; return { para: 1, cp: L }; })() };
     const supRes = k.formatVertAlign('superscript');
     assert(supRes.ok === true, `K29e superscript 受理（ok=${supRes.ok}）`);
     const sup = baseTexts()[1];
@@ -413,7 +414,8 @@ try {
     const supUndo = k.undo();
     assert(supUndo.undone === true && baseTexts()[1].size_pt === before[1].size_pt && Math.abs(baseTexts()[1].y - ys0[1]) < 1e-9,
       '上標 undo 後字級與基線逐位回基線');
-    k.caret = { para: 1, cp: 0 };
+    k.caret = { para: 1, cp: 0 }; // U4l：字元格式需圈選（整段圈選＝合法態，本段驗引擎鏈非局部性）
+    k.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: (() => { const L = Array.from(k.paragraphText(1) || '').length; return { para: 1, cp: L }; })() };
     const subRes = k.formatVertAlign('subscript');
     assert(subRes.ok === true, `K29e subscript 受理（ok=${subRes.ok}）`);
     const sub = baseTexts()[1];

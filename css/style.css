@@ -762,6 +762,12 @@ body, html {
   cursor: pointer;
 }
 
+
+/* U4l：格式提示 pill——[hidden] 必須能壓過 class 的 display（author 樣式優先於
+   UA 的 [hidden] 規則，不補這條 hidden 會失效變成永遠顯示）。 */
+.qword-status-hint[hidden] { display: none; }
+.qword-status-hint { border-color: #b58900; color: #8a6500; background: #fff8e6; }
+
 .qword-status-pill:hover {
   background: var(--qw-bg-hover);
   color: var(--qw-text-main);

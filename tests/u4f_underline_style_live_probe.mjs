@@ -122,9 +122,11 @@ async function runInPage(baseUrl) {
     return !!(pop && pop.classList.contains('open'));
   };
   const caretBodyPara = () => {
-    // 游標釘進正文段（para 1，同 e2b 探針口徑）；避免選取殘留，清 selection
-    adapter().selection = null;
+    // 游標釘進正文段（para 1，同 e2b 探針口徑）。U4l 起字元格式需要**圈選**才
+    // 會落地（未選取→needsSelection 誠實拒絕，不再悄悄套整段），故此處必設
+    // 選區而非清 selection：本探針驗的是「圈選後底線形態逐形態真通」。
     adapter().caret = { para: 1, cp: 0 };
+    adapter().selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 8 } };
   };
 
   const R = { meta: { baseUrl, at: new Date().toISOString(), ua: navigator.userAgent }, labels: {}, forms: {}, honesty: {}, notes: {} };

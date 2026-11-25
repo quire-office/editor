@@ -1209,25 +1209,12 @@ export class EngineAdapter {
   }
 
   /**
-   * 取得有效格式化文字範圍（優先使用 selection；未選取時降級至整段）
-   */
-  getEffectiveRange() {
-    const sel = this.normalizedSelection();
-    if (sel) {
-      return { target: 'Body', start: sel.start, end: sel.end };
-    }
-    const para = this.caret ? this.caret.para : 0;
-    const text = this.paragraphText(para) || '';
-    const cpEnd = Array.from(text).length;
-    return {
-      target: 'Body',
-      start: { para, cp: 0 },
-      end: { para, cp: cpEnd }
-    };
-  }
-
-  /**
    * 取得有效段落範圍（優先使用 selection 所涵蓋段落；未選取時為目前段）
+   *
+   * 段落級指令（對齊／樣式）未選取時作用於目前段＝Word 正確語義，保留。
+   * 字元級格式（bold/italic/底線/顏色/字級/字型/醒目/上下標/刪除線）的
+   * 舊「未選取→整段」回退（getEffectiveRange，已刪）是「點粗體整段變粗」
+   * 投訴的根因，由 formatTextRange 的 needsSelection 誠實拒絕取代。
    */
   getEffectiveParaRange() {
     if (this.selection) {
@@ -1241,10 +1228,25 @@ export class EngineAdapter {
 
   /**
    * 套用字元級直接格式 (M2.1 FormatTextRange)
+   *
+   * U4l 誠實紀律：未顯式帶 range 且無選區時**拒絕**（type: 'needsSelection'），
+   * 不再回退整段——「點一下粗體整段變粗」是用戶實測投訴的根因（getEffectiveRange
+   * 舊回退）。Word 的未選取語義（影響接下來打的字）需要引擎 InsertText 帶
+   * style_override，而引擎該欄是靜默丟棄（mutation.rs `style_override: _`），
+   * 外殼無 honest 實作路徑，一律如實點名拒絕、由 UI 提示先圈選文字。
    */
   formatTextRange(range, patch = {}) {
     if (!this.engine) throw new Error('尚未開啟文件，無法格式化文字');
-    const targetRange = range || this.getEffectiveRange();
+    const targetRange = range || (this.normalizedSelection()
+      ? { target: 'Body', ...this.normalizedSelection() }
+      : null);
+    if (!targetRange) {
+      return {
+        ok: false,
+        needsSelection: true,
+        error: '未圈選文字：字元格式需要選取範圍才能套用。本引擎尚未支援「未選取先開格式再打字」的輸入態（引擎 InsertText 的 style_override 欄位目前為佔位未實裝），故不套用也不冒充成功。'
+      };
+    }
     const mutation = buildFormatTextRangeMutation(targetRange, patch);
     const res = engineMutationResult(this.engine.apply_mutation_json(JSON.stringify(mutation)), 'apply_mutation_json（FormatTextRange）');
 

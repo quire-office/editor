@@ -79,6 +79,10 @@ check('P4g UNDERLINE_KINDS 含 thick', (await import(ADAPTER)).UNDERLINE_KINDS.i
 const c = new EngineAdapter();
 await c.init();
 c.openDefaultSample();
+// U4l 隨動：字元格式未圈選→needsSelection 誠實拒絕（舊「整段回退」是用戶投訴的
+// 缺陷本體，已刪）。P5 驗的是**切換語意**（next 值大小寫），與作用域無關，故在此
+// 顯式圈選 para 1 頭 4 字——與 P1/P2 的 explicit range 同為合法使用者操作。
+c.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 4 } };
 const on = c.formatUnderline();
 check('P5a 切換開底線 ok', on.ok === true);
 check('P5b 切換後檔契約 single', documentXml(c).includes('<w:u w:val="single"/>'));

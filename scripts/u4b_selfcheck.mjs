@@ -114,7 +114,7 @@ console.log('\n[檢查 2] 底線閉環：adapter.formatUnderline → Text.flags 
   a.openDefaultSample();
   const before = textsOf(a)[1];
   assert((before.flags & 4) === 0, `段落 1 初態不具底線（flags=${before.flags}）`);
-  a.caret = { para: 1, cp: 0 };
+  a.caret = { para: 1, cp: 0 }; a.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 8 } }; // U4l：字元格式需圈選
   const res = a.formatUnderline('single');
   ok(res.ok === true, `formatUnderline 受理（ok=${res.ok}）`);
   const after = textsOf(a)[1];
@@ -125,10 +125,10 @@ console.log('\n[檢查 2] 底線閉環：adapter.formatUnderline → Text.flags 
   ok(undoRes.ok === true && undoRes.undone === true, 'undo 成功');
   ok((textsOf(a)[1].flags & 4) === 0, `undo 後底線旗標消失（flags=${textsOf(a)[1].flags}）`);
   // 切換語意：已有底線時不帶形態再點＝明確移除（探針讀旗標決定方向）
-  a.caret = { para: 1, cp: 0 };
+  a.caret = { para: 1, cp: 0 }; a.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 8 } }; // U4l：字元格式需圈選
   a.formatUnderline('single');
   const on = (textsOf(a)[1].flags & 4) === 4;
-  a.caret = { para: 1, cp: 0 };
+  a.caret = { para: 1, cp: 0 }; a.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 8 } }; // U4l：字元格式需圈選
   a.formatUnderline();
   const off = (textsOf(a)[1].flags & 4) === 0;
   a.undo();
@@ -141,7 +141,7 @@ console.log('\n[檢查 3] 刪除線閉環：adapter.formatStrikethrough → Text
   const a = new EngineAdapter();
   await a.init();
   a.openDefaultSample();
-  a.caret = { para: 1, cp: 0 };
+  a.caret = { para: 1, cp: 0 }; a.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 8 } }; // U4l：字元格式需圈選
   const res = a.formatStrikethrough('single');
   ok(res.ok === true, `formatStrikethrough 受理（ok=${res.ok}）`);
   const flags = textsOf(a)[1].flags;
@@ -166,7 +166,7 @@ console.log('\n[檢查 4] 上下標閉環：LO 真值常數（0.58×字級／−
   // 本卡的可驗收形態是「**行高不膨脹**」：上下標不改變 auto 行距 pitch。
   assert(pitch0.every(p => p > 0), `基線行距取得（實得 ${JSON.stringify(pitch0)}）`);
 
-  a.caret = { para: 1, cp: 0 };
+  a.caret = { para: 1, cp: 0 }; a.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 8 } }; // U4l：字元格式需圈選
   const sub = a.formatVertAlign('subscript');
   ok(sub.ok === true, `subscript 受理（ok=${sub.ok}）`);
   const t = textsOf(a)[1];
@@ -183,7 +183,7 @@ console.log('\n[檢查 4] 上下標閉環：LO 真值常數（0.58×字級／−
   ok(/w:vertAlign w:val="subscript"/.test(documentXml(a)), '存檔 XML 含 w:vertAlign val=subscript');
   a.undo();
 
-  a.caret = { para: 1, cp: 0 };
+  a.caret = { para: 1, cp: 0 }; a.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 8 } }; // U4l：字元格式需圈選
   const sup = a.formatVertAlign('superscript');
   const s = textsOf(a)[1];
   ok(sup.ok === true && Math.abs(s.size_pt / 12 - 0.58) < 0.005,
@@ -204,7 +204,7 @@ console.log('\n[檢查 5] 醒目提示閉環：Text 下方 Rect 發射＋fill �
   await a.init();
   a.openDefaultSample();
   const rects0 = rectsOf(a).length;
-  a.caret = { para: 1, cp: 0 };
+  a.caret = { para: 1, cp: 0 }; a.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 8 } }; // U4l：字元格式需圈選
   const res = a.formatHighlight('#FFFF00');
   ok(res.ok === true, `formatHighlight 受理（ok=${res.ok}）`);
   const rects = rectsOf(a);
@@ -215,7 +215,7 @@ console.log('\n[檢查 5] 醒目提示閉環：Text 下方 Rect 發射＋fill �
     '命名色走 <w:highlight w:val="yellow"/>（Word 互通形態，非自創欄位）');
   ok(a.undo().undone === true && rectsOf(a).length === rects0, 'undo 後底方塊消失');
   // 非命名色走 w:shd 路徑（引擎註解宣稱的雙族落點，實測其中一條）
-  a.caret = { para: 1, cp: 0 };
+  a.caret = { para: 1, cp: 0 }; a.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 8 } }; // U4l：字元格式需圈選
   a.formatHighlight('#123456');
   const r2 = rectsOf(a).find(r => r.fill_argb === 0xFF123456);
   ok(!!r2 && /<w:shd [^>]*w:fill="123456"\/>/.test(documentXml(a)),
@@ -229,7 +229,7 @@ console.log('\n[檢查 6] 字型族閉環：Text.family 宣告＋測寬推進（
   const a = new EngineAdapter();
   await a.init();
   a.openDefaultSample();
-  a.caret = { para: 1, cp: 0 };
+  a.caret = { para: 1, cp: 0 }; a.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 8 } }; // U4l：字元格式需圈選
   const widthsBefore = textsOf(a).slice(0, 6).map(t => +t.x.toFixed(4));
   const res = a.setFontFamily('Arial');
   ok(res.ok === true, `setFontFamily 受理（ok=${res.ok}）`);
@@ -250,14 +250,14 @@ console.log('\n[檢查 7] 清除直接格式：七欄一次寫入＋樣式級聯
   const a = new EngineAdapter();
   await a.init();
   a.openDefaultSample();
-  a.caret = { para: 1, cp: 0 };
+  a.caret = { para: 1, cp: 0 }; a.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 8 } }; // U4l：字元格式需圈選
   a.formatUnderline('single');
   a.formatStrikethrough('single');
   const combo = textsOf(a)[1].flags;
   a.formatTextRange({ start: { para: 1, cp: 0 }, end: { para: 1, cp: 4 } },
     { bold: true, italic: true, underline: 'Single', strike: 'Single', vert_align: 'Superscript' });
   const loaded = textsOf(a)[1];
-  a.caret = { para: 1, cp: 0 };
+  a.caret = { para: 1, cp: 0 }; a.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 8 } }; // U4l：字元格式需圈選
   const res = a.clearDirectCharFormatting();
   ok(res.ok === true, `clearDirectCharFormatting 受理（ok=${res.ok}）`);
   const cleared = textsOf(a)[1];
@@ -278,7 +278,7 @@ console.log('\n[檢查 8] 底線形態四層實測（U4g 考卷重估）：寫�
     const a = new EngineAdapter();
     await a.init();
     a.openDefaultSample();
-    a.caret = { para: 1, cp: 0 };
+    a.caret = { para: 1, cp: 0 }; a.selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: 8 } }; // U4l：字元格式需圈選
     const r = a.formatTextRange({ start: { para: 1, cp: 0 }, end: { para: 1, cp: 4 } }, { underline: kind });
     return { a, r, xml: patchedRunXml(documentXml(a)), t: textsOf(a)[1] };
   };

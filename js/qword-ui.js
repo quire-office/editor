@@ -53,7 +53,10 @@ export class QWordUI {
       getState: () => this.core.getState(),
       getLog: () => this.core.getLog(),
       openFile: (bytes, name) => this.loadFile(bytes, name),
-      openDefaultSample: () => this.loadDefaultSample()
+      openDefaultSample: () => this.loadDefaultSample(),
+      // 探針面：直接設 adapter.caret/selection 後需要手動重繪（UI 只在事件迴路
+      // 內自繪；探針直寫狀態不經過事件）。不承載任何使用者可見職能。
+      render: () => { this.renderCaret(); this.renderSelection(); }
     };
     window.__qwordLog = this.core.commandLog;
 
@@ -413,6 +416,7 @@ export class QWordUI {
         if (pos) {
           isPointerDown = true;
           startPos = pos;
+          dragRects = null; // 新一筆拖曳：框位重取（可能已捲動／換檔）
           this.adapter.caret = pos;
           this.adapter.selection = null;
           this.renderCaret();
@@ -432,24 +436,53 @@ export class QWordUI {
         }
       }, true);
 
-      this.pageContainer.addEventListener('pointermove', (e) => {
-        if (!isPointerDown || !startPos || !this.adapter.engine) return;
-        const realPage = e.target.closest('.qword-real-page');
-        if (!realPage) return;
-
-        const pageIndex = parseInt(realPage.getAttribute('data-page-index'), 10);
-        const canvas = realPage.querySelector('.qword-page-canvas');
-        if (!canvas) return;
-
-        const rect = canvas.getBoundingClientRect();
+      // U4l 拖曳選取修復（用戶投訴「無法拖曳選取段落」）：舊實作把 pointermove
+      // 綁在 pageContainer 且要求 e.target 落在 real-page 內——拖進頁縫、頁緣
+      // 灰區、或拖離容器，事件直接斷流／早退，選區凍結在原點（11-25 CDP 實錄：
+      // 左拖出頁緣 selection 恆 null、跨頁拖曳零反應）。修法兩件：
+      // (1) 監聽升到 window 級（拖出容器仍有事件，pointerup 本來就在 window）；
+      // (2) 命中不到頁面時退到「最近頁＋座標鉗進頁框」——Word 對拖出文本邊的
+      //     行為正是鉗到最近字元，灰區不再斷流。
+      const pageContextFromPoint = (clientX, clientY, rects) => {
+        let best = null; let bestDist = Infinity;
+        for (const { el, rect } of rects) {
+          const inside = clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+          const dx = inside ? 0 : Math.max(rect.left - clientX, 0, clientX - rect.right);
+          const dy = inside ? 0 : Math.max(rect.top - clientY, 0, clientY - rect.bottom);
+          const dist = dx + dy;
+          if (dist < bestDist) { bestDist = dist; best = { el, rect, inside }; }
+        }
+        if (!best) return null;
+        const pageIndex = parseInt(best.el.getAttribute('data-page-index'), 10);
         const dl = this.adapter.getPageDisplayList(pageIndex);
         const widthPt = (dl && dl.width_pt) || 595;
-        const scale = rect.width / widthPt;
-
-        const moveXPt = (e.clientX - rect.left) / scale;
-        const moveYPt = (e.clientY - rect.top) / scale;
-
-        const curPos = this.adapter.caretAt(pageIndex, moveXPt, moveYPt);
+        const scale = best.rect.width / widthPt;
+        // 鉗進頁框（越界座標換算成 pt 後引擎會 None；先鉗再問就有「最近字元」）
+        const cx = Math.min(Math.max(clientX, best.rect.left), best.rect.right - 1);
+        const cy = Math.min(Math.max(clientY, best.rect.top), best.rect.bottom - 1);
+        return { pageIndex, xPt: (cx - best.rect.left) / scale, yPt: (cy - best.rect.top) / scale };
+      };
+      // 效能閘：長文件逐 pointermove 全頁 getBoundingClientRect 會版面抖動。
+      // 框位在下壓時取一次；捲動（拖到邊緣時頁面會滾）標髒重取。
+      let dragRects = null;
+      const collectPageRects = () => {
+        const pages = this.pageContainer
+          ? Array.from(this.pageContainer.querySelectorAll('.qword-real-page')) : [];
+        return pages.map((p) => {
+          const canvas = p.querySelector('.qword-page-canvas');
+          return canvas ? { el: p, rect: canvas.getBoundingClientRect() } : null;
+        }).filter(Boolean);
+      };
+      const onDragScroll = () => { dragRects = null; };
+      // 捲動（含拖到邊緣自動捲動）→ 框位過期標髒。capture 收任何滾動容器。
+      window.addEventListener('scroll', onDragScroll, true);
+      window.addEventListener('wheel', onDragScroll, { capture: true, passive: true });
+      window.addEventListener('pointermove', (e) => {
+        if (!isPointerDown || !startPos || !this.adapter.engine) return;
+        if (!dragRects) dragRects = collectPageRects();
+        const ctx = pageContextFromPoint(e.clientX, e.clientY, dragRects);
+        if (!ctx) return;
+        const curPos = this.adapter.caretAt(ctx.pageIndex, ctx.xPt, ctx.yPt);
         if (curPos) {
           if (curPos.para !== startPos.para || curPos.cp !== startPos.cp) {
             this.adapter.selection = {
@@ -457,6 +490,12 @@ export class QWordUI {
               start: startPos,
               end: curPos
             };
+            this.adapter.caret = curPos;
+            this.renderCaret();
+            this.renderSelection();
+          } else if (this.adapter.selection) {
+            // 拖回起點：選區歸零（Word 同口徑——收回原點高亮即消失）
+            this.adapter.selection = null;
             this.adapter.caret = curPos;
             this.renderCaret();
             this.renderSelection();
@@ -811,6 +850,29 @@ export class QWordUI {
     caretLayer.appendChild(div);
   }
 
+  /**
+   * U4l：字元格式被 needsSelection 拒絕時的狀態列提示（非模態、5 秒自隱）。
+   * 「默默整段變粗」與「每錯一次轟一次 modal」都是壞選項——提示要誠實、
+   * 輕量、可忽略。
+   */
+  showFormatHint(msg) {
+    const pill = document.querySelector('.qword-status-hint');
+    const span = pill && pill.querySelector('.qword-status-hint-text');
+    if (!pill || !span) return;
+    span.textContent = msg;
+    pill.hidden = false;
+    if (this._formatHintTimer) clearTimeout(this._formatHintTimer);
+    this._formatHintTimer = setTimeout(() => { pill.hidden = true; }, 5000);
+  }
+
+  _noteFormatRejection(res) {
+    if (res && res.needsSelection) {
+      this.showFormatHint('請先圈選要套用格式的文字（游標未選取時本殼不套用字元格式，見「說明」）');
+      return true;
+    }
+    return false;
+  }
+
   async handleFormatBold(payload) {
     if (!this.adapter.engine) return;
     const res = this.adapter.formatBold(payload?.bold);
@@ -819,6 +881,8 @@ export class QWordUI {
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
+    } else {
+      this._noteFormatRejection(res);
     }
   }
 
@@ -830,6 +894,8 @@ export class QWordUI {
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
+    } else {
+      this._noteFormatRejection(res);
     }
   }
 
@@ -842,6 +908,8 @@ export class QWordUI {
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
+    } else {
+      this._noteFormatRejection(res);
     }
   }
 
@@ -856,7 +924,7 @@ export class QWordUI {
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
-    } else {
+    } else if (!this._noteFormatRejection(res)) {
       this.core.recordCommandFailure('format:underline');
     }
   }
@@ -872,7 +940,7 @@ export class QWordUI {
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
-    } else {
+    } else if (!this._noteFormatRejection(res)) {
       this.core.recordCommandFailure('format:underline-style', payload || {}, String(res.error || ''), 'live');
     }
   }
@@ -885,7 +953,7 @@ export class QWordUI {
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
-    } else {
+    } else if (!this._noteFormatRejection(res)) {
       this.core.recordCommandFailure('format:strikethrough');
     }
   }
@@ -898,7 +966,7 @@ export class QWordUI {
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
-    } else {
+    } else if (!this._noteFormatRejection(res)) {
       this.core.recordCommandFailure('format:vert-align');
     }
   }
@@ -911,7 +979,7 @@ export class QWordUI {
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
-    } else {
+    } else if (!this._noteFormatRejection(res)) {
       this.core.recordCommandFailure('format:highlight');
     }
   }
@@ -929,7 +997,7 @@ export class QWordUI {
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
-    } else {
+    } else if (!this._noteFormatRejection(res)) {
       this.core.recordCommandFailure('font:family');
     }
   }
@@ -942,7 +1010,7 @@ export class QWordUI {
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
-    } else {
+    } else if (!this._noteFormatRejection(res)) {
       this.core.recordCommandFailure('font:clear-formatting');
     }
   }
@@ -955,6 +1023,8 @@ export class QWordUI {
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
+    } else {
+      this._noteFormatRejection(res);
     }
   }
 
@@ -966,6 +1036,8 @@ export class QWordUI {
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
+    } else {
+      this._noteFormatRejection(res);
     }
   }
 
@@ -978,6 +1050,8 @@ export class QWordUI {
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
+    } else {
+      this._noteFormatRejection(res);
     }
   }
 

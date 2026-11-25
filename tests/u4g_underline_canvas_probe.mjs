@@ -333,7 +333,15 @@ async function runInPage(baseUrl, buggy, opts) {
     await sleep(80);
     return !!(pop && pop.classList.contains('open'));
   };
-  const caretBodyPara = () => { adapter().selection = null; adapter().caret = { para: 1, cp: 0 }; };
+  // U4l 隨動：字元格式（底線／字級）現在需要**圈選**才落地（未選取→needsSelection
+  // 誠實拒絕，不再悄悄套整段——那是用戶投訴的缺陷本體）。本探針的目標態是「整個
+  // 目標段帶形態」，故圈選取 para 1 全文（合法使用者操作），grow×7 與逐形態 click
+  // 都走在這條選區上；舊「caret 即可」前提屬缺陷語義，禁復辟。
+  const caretBodyPara = () => {
+    const L = Array.from(adapter().paragraphText(1) || '').length;
+    adapter().caret = { para: 1, cp: 0 };
+    adapter().selection = { target: 'Body', start: { para: 1, cp: 0 }, end: { para: 1, cp: L } };
+  };
   const clickStyle = async (style) => {
     caretBodyPara();
     const opened = await reopenMenu(); await sleep(40);
