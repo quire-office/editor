@@ -571,9 +571,25 @@ export class QWordUI {
         return;
       }
 
+      // U4k：Delete 鍵＝刪選區（無選區時刪游標後一格；引擎無「向後刪單格」
+      // 變體，走 DeleteRange 半開區間 [caret, caret+1)）。
+      if (e.key === 'Delete') {
+        e.preventDefault();
+        this.handleDelete();
+        return;
+      }
+
       if (e.key === 'Enter') {
         e.preventDefault();
-        this.handleEnter();
+        this.handleEnter({ soft: !!e.shiftKey });
+        return;
+      }
+
+      // U4k：Shift＋方向鍵延伸選區（錨點＝起點，focus 端隨按鍵移動；
+      // Home/End 到段界；上下鍵依 caretRect 幾何找鄰列最近 x——發射同源尺）。
+      if (e.shiftKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) {
+        e.preventDefault();
+        this.handleSelectionExtend(e.key);
         return;
       }
 
@@ -591,10 +607,15 @@ export class QWordUI {
       if (e.key === 'ArrowRight') {
         e.preventDefault();
         if (this.adapter.caret) {
-          this.adapter.caret.cp++;
-          this.adapter.selection = null;
-          this.renderCaret();
-          this.renderSelection();
+          // U4k 順手修：cp++ 無界會越過段尾（下一次打字的 InsertText 帶越界
+          // cp 被引擎拒），夾到段尾；跨段前進留給幾何路徑（本卡不外 expand）。
+          const len = Array.from(this.adapter.paragraphText(this.adapter.caret.para) || '').length;
+          if (this.adapter.caret.cp < len) {
+            this.adapter.caret.cp++;
+            this.adapter.selection = null;
+            this.renderCaret();
+            this.renderSelection();
+          }
         }
         return;
       }
@@ -1017,16 +1038,101 @@ export class QWordUI {
     }
   }
 
-  async handleEnter() {
+  async handleEnter(payload = {}) {
     if (!this.adapter.engine) return;
-    const res = this.adapter.enter();
+    const res = this.adapter.enter(undefined, undefined, { soft: !!payload.soft });
     if (res.ok) {
       this.adapter.selection = null;
       await this.refreshPages();
       this.renderCaret();
       this.renderSelection();
       this.syncEngineStats();
+    } else if (res.error) {
+      console.log('[QWordUI] 換行未執行:', res.error);
     }
+  }
+
+  /**
+   * U4k：Delete 鍵。選區優先刪選區；無選區刪游標後一格（段尾則無後方字元，
+   * 不跨段合併——那是 Backspace 段頭的語義，Word 同口徑）。
+   */
+  async handleDelete() {
+    if (!this.adapter.engine) return;
+    const res = this.adapter.deleteForward();
+    if (res === null) return; // 段尾無字可刪：無操作（Word 同口徑）
+    if (!res.ok) { console.log('[QWordUI] Delete 未執行:', res.error); return; }
+    this.adapter.selection = null;
+    await this.refreshPages();
+    this.renderCaret();
+    this.renderSelection();
+    this.syncEngineStats();
+  }
+
+  /**
+   * U4k：Shift＋方向鍵延伸選區。錨點規則與 Word 一致：
+   * - 無選區時起點＝目前游標，focus 端移動一格（跨段界時越界到鄰段）；
+   * - 有選區時收放 focus 端（已在段界繼續走就進鄰段）。
+   * 上下鍵用 caretRect 的 x_pt 找鄰段最近 cp（發射同源尺，不造第二把尺）。
+   */
+  handleSelectionExtend(key) {
+    const a = this.adapter;
+    if (!a.engine || !a.caret) return;
+    const sel = a.normalizedSelection();
+    let anchor, focus;
+    if (sel) { anchor = sel.start; focus = { ...sel.end }; }
+    else { anchor = { ...a.caret }; focus = { ...a.caret }; }
+
+    const paraLen = (p) => Array.from(a.paragraphText(p) || '').length;
+    const pc = a.paragraphCount();
+    const atSegEnd = (pos) => focus.cp >= paraLen(focus.para);
+    const atSegStart = (pos) => focus.cp <= 0;
+
+    if (key === 'ArrowLeft') {
+      if (focus.cp > 0) focus.cp--;
+      else if (focus.para > 0) { focus.para--; focus.cp = paraLen(focus.para); }
+    } else if (key === 'ArrowRight') {
+      if (focus.cp < paraLen(focus.para)) focus.cp++;
+      else if (focus.para + 1 < pc) { focus.para++; focus.cp = 0; }
+    } else {
+      // 上下鍵：以幾何找鄰段（跨頁由 caretAt 反查處理，僅限同文件內）。
+      const cur = a.caretRect(focus.para, focus.cp);
+      if (!cur) return;
+      const dir = key === 'ArrowUp' ? -1 : 1;
+      let probe = { ...focus };
+      for (let guard = 0; guard <= paraLen(probe.para); guard++) {
+        if (dir < 0 ? atSegStart() : atSegEnd()) {
+          if (probe.para + dir < 0 || probe.para + dir >= pc) return;
+          probe = { para: probe.para + dir, cp: dir < 0 ? paraLen(probe.para + dir) : 0 };
+          focus = probe;
+          break;
+        }
+        const nextCp = focus.cp + dir;
+        const next = a.caretRect(focus.para, nextCp);
+        if (!next) return;
+        if (next.y_pt !== cur.y_pt) { // 換列了 → 落進上一列／下一列
+          const np = dir < 0 ? focus.cp - 1 : focus.cp + 1;
+          if (np < 0) { if (focus.para <= 0) return; focus = { para: focus.para - 1, cp: paraLen(focus.para - 1) }; }
+          else if (np > paraLen(focus.para)) { if (focus.para + 1 >= pc) return; focus = { para: focus.para + 1, cp: 0 }; }
+          else focus.cp = np;
+          break;
+        }
+        focus.cp = nextCp;
+        // x 錨定：找與原 x_pt 最近者（同列移動中持續校正）
+        const r = a.caretRect(focus.para, focus.cp);
+        if (r && cur.x_pt !== undefined && r.x_pt !== undefined) {
+          const r2 = a.caretRect(focus.para, focus.cp + 1);
+          if (r2 && Math.abs(r2.x_pt - cur.x_pt) < Math.abs(r.x_pt - cur.x_pt)) focus.cp = focus.cp + 1;
+        }
+      }
+    }
+    if (anchor.para === focus.para && anchor.cp === focus.cp) {
+      a.selection = null;
+    } else {
+      a.selection = { target: 'Body', start: anchor, end: focus };
+    }
+    a.caret = { ...focus };
+    this.renderCaret();
+    this.renderSelection();
   }
 
   async handleUndo() {

@@ -82,16 +82,46 @@ export function buildInsertTextMutation(para, cp, text, styleOverride = null) {
 }
 
 /**
- * 建立 M1.2 DeleteRange 變更物件（單段半開區間）
+ * 建立 M1.2 DeleteRange 變更物件（K29b 起引擎支援跨段同容器刪除，端點任意段）
  */
-export function buildDeleteRangeMutation(para, startCp, endCp) {
+export function buildDeleteRangeMutation(startPara, startCp, endPara, endCp) {
+  // 向後相容：舊簽名 (para, startCp, endCp) 三參呼叫視為單段——endCp 缺席時
+  // 把 endPara 位移回 endCp、endPara 退回 startPara（直接換序會把起訖反轉）。
+  if (endCp === undefined) { endCp = endPara; endPara = startPara; }
   return {
     DeleteRange: {
       range: {
         target: 'Body',
-        start: { para: Number(para), cp: Number(startCp) },
-        end: { para: Number(para), cp: Number(endCp) }
+        start: { para: Number(startPara), cp: Number(startCp) },
+        end: { para: Number(endPara), cp: Number(endCp) }
       }
+    }
+  };
+}
+
+/**
+ * 建立 M1.3 SplitParagraph 變更物件（Enter 段落中切分；引擎回 caret_after
+ * ＝新段起點 { para: p+1, cp: 0 }，11-25 真 wasm 實錄）。
+ */
+export function buildSplitParagraphMutation(para, cp) {
+  return {
+    SplitParagraph: {
+      target: 'Body',
+      pos: { para: Number(para), cp: Number(cp) }
+    }
+  };
+}
+
+/**
+ * 建立 M1.4 MergeParagraphWithNext 變更物件（Backspace 段頭合併；引擎把下一段
+ * 併入本段並回 caret_after={para, cp:0}——caret 要由呼叫端校正到合併縫合處，
+ * 本函數不造第二把尺：縫合處＝原段長，由呼叫端在合併前讀 paragraphText 計）。
+ */
+export function buildMergeParagraphMutation(para) {
+  return {
+    MergeParagraphWithNext: {
+      target: 'Body',
+      para: Number(para)
     }
   };
 }
@@ -956,10 +986,44 @@ export class EngineAdapter {
   }
 
   /**
-   * 在指定或目前游標處打字 (M1.1 InsertText)
+   * 選區正規化出口（K30/U4k）：任何消費 selection 的組裝路徑都先過這裡。
+   * 反向拖曳選區（終點在起點前）若直接進 mutation 會組出 start>end 的壞請求；
+   * UI 繪製端本就有排序兜底，組裝端現在也統一從這個出口走（座標不變、只排序）。
+   */
+  normalizedSelection() {
+    const s = this.selection;
+    if (!s || !s.start || !s.end) return null;
+    const a = { para: Number(s.start.para), cp: Number(s.start.cp) };
+    const b = { para: Number(s.end.para), cp: Number(s.end.cp) };
+    if (b.para < a.para || (b.para === a.para && b.cp < a.cp)) return { start: b, end: a };
+    if (a.para === b.para && a.cp === b.cp) return null; // 空選區不是選區
+    return { start: a, end: b };
+  }
+
+  /**
+   * 有選區時先刪掉（Word 語義：打字／Enter 會替換選取內容）。
+   * @returns {{replaced: boolean, error?: string}} error＝引擎拒絕（呼叫端不得假成功）
+   */
+  _deleteSelectionIfExists() {
+    const sel = this.normalizedSelection();
+    if (!sel) { this.selection = null; return { replaced: false }; }
+    const mutation = buildDeleteRangeMutation(sel.start.para, sel.start.cp, sel.end.para, sel.end.cp);
+    const res = engineMutationResult(this.engine.apply_mutation_json(JSON.stringify(mutation)), 'apply_mutation_json（DeleteRange 選區替換）');
+    if (!res.ok) return { replaced: false, error: res.error };
+    this.isDirty = true;
+    if (res.outcome && res.outcome.caret_after) this.caret = { ...res.outcome.caret_after };
+    this.selection = null;
+    return { replaced: true };
+  }
+
+  /**
+   * 在指定或目前游標處打字 (M1.1 InsertText)。
+   * U4k：帶選區時選區先被替換（打字吃進選區），與 Word/Docs 一致。
    */
   typeAt(para, cp, text) {
     if (!this.engine) throw new Error('尚未開啟文件，無法輸入文字');
+    const pre = this._deleteSelectionIfExists();
+    if (pre.error) return { ok: false, error: pre.error };
     const targetPara = para !== undefined ? Number(para) : (this.caret ? this.caret.para : 0);
     const targetCp = cp !== undefined ? Number(cp) : (this.caret ? this.caret.cp : 0);
     const mutation = buildInsertTextMutation(targetPara, targetCp, text);
@@ -981,17 +1045,35 @@ export class EngineAdapter {
    */
   backspace(para, cp) {
     if (!this.engine) throw new Error('尚未開啟文件，無法退格');
+    // U4k：選區優先——有選區時退格＝刪選區（Word 語義），不是退一格。
+    if (this.normalizedSelection()) {
+      const pre = this._deleteSelectionIfExists();
+      return pre.error ? { ok: false, error: pre.error } : { ok: true, selectionDeleted: true };
+    }
     const targetPara = para !== undefined ? Number(para) : (this.caret ? this.caret.para : 0);
     const targetCp = cp !== undefined ? Number(cp) : (this.caret ? this.caret.cp : 0);
 
     if (targetCp <= 0) {
-      return {
-        ok: false,
-        error: '已位於段落開頭，單段刪除暫不支援跨段合併'
-      };
+      // 段頭退格＝與上一段合併（M1.4 MergeParagraphWithNext，真 wasm 實錄
+      // ok=true／caret_after={para:p-1, cp:0}——引擎把 caret 落在上一段起點，
+      // 與 Word「caret 停在縫合處」不符，故本層校正：縫合處＝上一段原長，
+      // 合併前用 paragraphText 讀（發射同源尺），不造第二把尺。
+      // 表格邊界：引擎在跨容器時回 ProtectedStructure/CrossContainerBoundary
+      // 誠實拒絕，本層原樣轉呈，不試錯第二條路。
+      if (targetPara <= 0) {
+        return { ok: false, error: '已位於文件開頭，無可合併的前段' };
+      }
+      const prevLen = Array.from(this.paragraphText(targetPara - 1) || '').length;
+      const mutation = buildMergeParagraphMutation(targetPara - 1);
+      const res = engineMutationResult(this.engine.apply_mutation_json(JSON.stringify(mutation)), 'apply_mutation_json（MergeParagraphWithNext）');
+      if (res.ok) {
+        this.isDirty = true;
+        this.caret = { para: targetPara - 1, cp: prevLen };
+      }
+      return res;
     }
 
-    const mutation = buildDeleteRangeMutation(targetPara, targetCp - 1, targetCp);
+    const mutation = buildDeleteRangeMutation(targetPara, targetCp - 1, targetPara, targetCp);
     const res = engineMutationResult(this.engine.apply_mutation_json(JSON.stringify(mutation)), 'apply_mutation_json（DeleteRange）');
 
     if (res.ok) {
@@ -1006,19 +1088,53 @@ export class EngineAdapter {
   }
 
   /**
-   * Enter 鍵 (M1.5 InsertBreak 軟換行)
+   * Delete 鍵 (U4k)：選區優先刪選區；無選區刪游標後一格 [cp, cp+1)。
+   * 段尾回 null＝無操作（不跨段吞下段首字，Word 同口徑）。
    */
-  enter(para, cp) {
-    if (!this.engine) throw new Error('尚未開啟文件，無法換行');
+  deleteForward(para, cp) {
+    if (!this.engine) throw new Error('尚未開啟文件，無法刪除');
+    if (this.normalizedSelection()) {
+      const pre = this._deleteSelectionIfExists();
+      return pre.error ? { ok: false, error: pre.error } : { ok: true, selectionDeleted: true };
+    }
     const targetPara = para !== undefined ? Number(para) : (this.caret ? this.caret.para : 0);
     const targetCp = cp !== undefined ? Number(cp) : (this.caret ? this.caret.cp : 0);
-    const mutation = buildInsertBreakMutation(targetPara, targetCp, 'LineWrapping');
-    const res = engineMutationResult(this.engine.apply_mutation_json(JSON.stringify(mutation)), 'apply_mutation_json（InsertBreak）');
+    const len = Array.from(this.paragraphText(targetPara) || '').length;
+    if (targetCp >= len) return null;
+    const mutation = buildDeleteRangeMutation(targetPara, targetCp, targetPara, targetCp + 1);
+    const res = engineMutationResult(this.engine.apply_mutation_json(JSON.stringify(mutation)), 'apply_mutation_json（DeleteRange 向後刪）');
+    if (res.ok) {
+      this.isDirty = true;
+      if (res.outcome && res.outcome.caret_after) this.caret = { ...res.outcome.caret_after };
+      else this.caret = { para: targetPara, cp: targetCp };
+    }
+    return res;
+  }
+
+  /**
+   * Enter 鍵 (U4k：硬換行改走 M1.3 SplitParagraph——真正的段落一分為二，
+   * Word 語義；caret_after 引擎如實回新段起點 { para: p+1, cp: 0 })。
+   * 軟換行（Shift+Enter，M1.5 InsertBreak LineWrapping）留 shift 參數走舊路。
+   */
+  enter(para, cp, { soft = false } = {}) {
+    if (!this.engine) throw new Error('尚未開啟文件，無法換行');
+    const pre = this._deleteSelectionIfExists();
+    if (pre.error) return { ok: false, error: pre.error };
+    const targetPara = para !== undefined ? Number(para) : (this.caret ? this.caret.para : 0);
+    const targetCp = cp !== undefined ? Number(cp) : (this.caret ? this.caret.cp : 0);
+    const mutation = soft
+      ? buildInsertBreakMutation(targetPara, targetCp, 'LineWrapping')
+      : buildSplitParagraphMutation(targetPara, targetCp);
+    const res = engineMutationResult(this.engine.apply_mutation_json(JSON.stringify(mutation)),
+      soft ? 'apply_mutation_json（InsertBreak）' : 'apply_mutation_json（SplitParagraph）');
 
     if (res.ok) {
       this.isDirty = true;
       if (res.outcome && res.outcome.caret_after) {
         this.caret = { ...res.outcome.caret_after };
+      } else if (!soft) {
+        // SplitParagraph 的 caret_after 缺席兜底：新段起點（不造尺，契約值）。
+        this.caret = { para: targetPara + 1, cp: 0 };
       }
     }
     return res;
@@ -1096,8 +1212,9 @@ export class EngineAdapter {
    * 取得有效格式化文字範圍（優先使用 selection；未選取時降級至整段）
    */
   getEffectiveRange() {
-    if (this.selection && (this.selection.start.para !== this.selection.end.para || this.selection.start.cp !== this.selection.end.cp)) {
-      return this.selection;
+    const sel = this.normalizedSelection();
+    if (sel) {
+      return { target: 'Body', start: sel.start, end: sel.end };
     }
     const para = this.caret ? this.caret.para : 0;
     const text = this.paragraphText(para) || '';
