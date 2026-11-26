@@ -1,6 +1,6 @@
 {
   "$schema": "編輯器外殼的引擎 wasm 資產清單（進 git 的唯一信任來源）",
-  "version": "0.1.0-beta.14",
+  "version": "0.1.0-beta.15",
   "release_url_template": "https://github.com/quire-office/quire/releases/download/v{version}/{file}",
   "local_fallback_dir": "QUIRE_ENGINE_PKG",
   "local_fallback_hint": "設 QUIRE_ENGINE_PKG=/path/to/quire/shells/web/pkg 允許本機引擎建置降級（僅開發用，CI 禁用）",
@@ -8,8 +8,8 @@
   "assets": [
     {
       "file": "quire_web_bg.wasm",
-      "sha256": "a40d65f59d5bec6a2b2e95c5d74769900aebed59ab0953aadbcc9a0dad92554e",
-      "note": "引擎 wasm（CI 建置，v0.1.0-beta.14：U4i caret 字級同源＋帶界浮點落帶；raw 2,516,456 bytes，digest 取自 release API）。"
+      "sha256": "25543194b48986e0f7cdc800c1fbf814b64e7c6307f980f68bc8d55815bc6bbb",
+      "note": "引擎 wasm（CI 建置，v0.1.0-beta.15：U4m caret_at 行框墨跡真值制＋paragraph_cp_len 效能修復＋殼層 Enter 分段收斂；raw 2,525,784 bytes，digest 取自 release API）。"
     },
     {
       "file": "quire_web.js",

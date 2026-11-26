@@ -10,6 +10,7 @@
     "prestart": "node scripts/fetch-wasm.mjs",
     "start": "python3 -m http.server 8791 --bind 127.0.0.1",
     "sprite": "python3 scripts/gen_icon_sprite.py --apply",
-    "selfcheck": "node scripts/wordui_u1_selfcheck.mjs && node scripts/u2_selfcheck.mjs && node scripts/u3_selfcheck.mjs && node scripts/u4_selfcheck.mjs && node scripts/u4b_selfcheck.mjs && node scripts/u4d_selfcheck.mjs && node scripts/u4e_selfcheck.mjs"
+    "selfcheck": "node scripts/wordui_u1_selfcheck.mjs && node scripts/u2_selfcheck.mjs && node scripts/u3_selfcheck.mjs && node scripts/u4_selfcheck.mjs && node scripts/u4b_selfcheck.mjs && node scripts/u4d_selfcheck.mjs && node scripts/u4e_selfcheck.mjs",
+    "drift": "node scripts/live-drift-check.mjs"
   }
 }
