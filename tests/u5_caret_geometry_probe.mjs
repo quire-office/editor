@@ -33,6 +33,10 @@ async function main() {
   const evalIn = async (e) => { const r = await send('Runtime.evaluate', { expression: e, returnByValue: true, awaitPromise: true, timeout: 120000 }); if (r.exceptionDetails) return '__EX__:' + String(r.exceptionDetails.exception?.description || '').slice(0, 200); return r.result ? r.result.value : undefined; };
 
   await send('Page.enable'); await send('Runtime.enable');
+  // 探針自身前提：headless 默認視窗約 493px 高，固定 Ribbon/HUD 會吞掉落在畫布
+  // 外的真點擊（caret 不動 → 誤判成引擎錯位）。先撐高視窗，且每次派發前用
+  // elementFromPoint 斷言真的命中 canvas（不命中就拍紅並回報元素，歸因不猜）。
+  await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1400, deviceScaleFactor: 1, mobile: false });
   await send('Page.navigate', { url: BASE_URL });
   for (let i = 0; i < 240; i++) { if (await evalIn('document.readyState') === 'complete') break; await sleep(250); }
   await evalIn('window.QWordShell.openDefaultSample()');
@@ -84,10 +88,17 @@ async function main() {
       await new Promise(function (x) { setTimeout(x, 380); });
       const c = w.querySelector('canvas'); const rect = c.getBoundingClientRect();
       const dl = A.getPageDisplayList(r.page); const scale = c.width / (dl.width_pt || 595);
-      return { x: rect.left + r.x_pt * scale, y: rect.top + (r.y_pt - 4) * scale,
-               pitch: dl.items.length ? 16.8 : 16.8, mid };
+      // 點擊 y 錨在**墨跡帶**（基線上方 4pt＝r.y＋size−4）。U4m 已定案 Text.y＝行框頂、
+      // 基線＝y＋size：錨在 y−4（行框頂以上）落的是上一行墨跡區，反查歸前段是
+      // **正確**行為（探針錨點錯，非產品缺陷——run 90 實錄：p1 誤錨 y−4→反查 (0,15)）。
+      const y = rect.top + (r.y_pt + (r.height_pt || 12) - 4) * scale;
+      const x = rect.left + (r.x_pt + 1) * scale;
+      const hit = document.elementFromPoint(Math.round(x), Math.round(y));
+      return { x: Math.round(x), y: Math.round(y), mid: mid,
+               hit: hit ? String(hit.className || hit.tagName) : null };
     })()`);
     if (!geo || typeof geo !== 'object') { clickHits.push({ p, skip: true }); continue; }
+    if (!String(geo.hit).includes('canvas')) { clickHits.push({ p, skip: 'hit=' + geo.hit }); continue; }
     await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: geo.x, y: geo.y, button: 'left', clickCount: 1, buttons: 1 });
     await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: geo.x, y: geo.y, button: 'left', buttons: 0 });
     await sleep(280);
@@ -119,7 +130,7 @@ async function main() {
     await new Promise(function (x) { setTimeout(x, 380); });
     const c = w.querySelector('canvas'); const rect = c.getBoundingClientRect();
     const dl = A.getPageDisplayList(r.page); const scale = c.width / (dl.width_pt || 595);
-    return { x: rect.left + r.x_pt * scale + 1, y: rect.top + (r.y_pt - 5) * scale };
+    return { x: rect.left + r.x_pt * scale + 1, y: rect.top + (r.y_pt + (r.height_pt || 12) - 5) * scale };
   })()`);
   await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: g3.x, y: g3.y, button: 'left', clickCount: 1, buttons: 1 });
   await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: g3.x, y: g3.y, button: 'left', buttons: 0 });
