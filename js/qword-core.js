@@ -235,8 +235,9 @@ export const UNDERLINE_STYLE_CANONICAL = ['single', 'double', 'thick', 'dotted',
 
 export class QWordCore {
   constructor(options = {}) {
+    this.options = options; // U5-m：fitPageWidth 要向 shell 要可視寬錨點
     this.activeTabId = options.initialTab || 'tab-home';
-    this.zoom = options.initialZoom || 100; // 60 ~ 180
+    this.zoom = options.initialZoom || 100; // 40 ~ 180
     this.viewMode = options.initialViewMode || 'print'; // 'print' | 'read' | 'web'
     this.rulerVisible = options.rulerVisible !== undefined ? options.rulerVisible : true;
     this.gridlinesVisible = false;
@@ -357,10 +358,13 @@ export class QWordCore {
   }
 
   /**
-   * 設定縮放比例（60 ~ 180）
+   * 設定縮放比例（40 ~ 180）
+   * U5-m（手機）：下限從 60 放到 40——手機視窗 ~390px，頁寬 794px，fit-width
+   * 真算出來就是 ~43%；舊下限 60 讓「適合頁寬」在小螢幕永遠塞不進去（用戶
+   * 11-26 實錄：手機多數文字在框外、點不到打不了字）。
    */
   setZoom(percentage) {
-    const clamped = Math.max(60, Math.min(180, Math.round(percentage)));
+    const clamped = Math.max(40, Math.min(180, Math.round(percentage)));
     this.zoom = clamped;
     this._notify('zoom:change', { zoom: clamped });
     return clamped;
@@ -379,8 +383,24 @@ export class QWordCore {
   }
 
   fitPageWidth() {
-    // 預設頁寬適配至 125%
-    return this.setZoom(125);
+    // 適合頁寬＝頁寬（794px @100%）真的塞進可視區，而非寫死值。
+    // 用戶實錄（11-26 手機）：舊實作恆回 125%——「適合頁寬」在手機上反而把頁
+    // 放得更大（992px > 390px 視窗），多數文字在框外，點不到也打不了字。
+    // 可視寬優先向 shell 要（pageContainer 實際可用寬），DOM 不可得（node 測）
+    // 退回視窗寬減留白；夾到 setZoom 下限（小螢幕可能觸底 40%，屬誠實結果）。
+    const PAGE_W_PX_100 = 794;
+    let avail = 0;
+    try {
+      const el = typeof this.options.getFitWidthEl === 'function' ? this.options.getFitWidthEl() : null;
+      // 扣項從寬：垂直標尺 24px＋viewport 左右 padding 32px＋餘量（寧小勿大——
+      // 算小了頁面縮一點無害，算大了塞不進視窗＝本次投訴原態）。
+      if (el && el.clientWidth) avail = el.clientWidth - 64;
+    } catch { /* DOM 不可得：退回下方 fallback */ }
+    if (!avail && typeof window !== 'undefined' && window.innerWidth) {
+      avail = window.innerWidth - 64;
+    }
+    if (!avail) return this.setZoom(100);
+    return this.setZoom((avail / PAGE_W_PX_100) * 100);
   }
 
   /**

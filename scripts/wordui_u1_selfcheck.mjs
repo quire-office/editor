@@ -235,7 +235,9 @@ try {
   core.onCommand('zoom:reset');
   assert(core.getState().zoom === 100, 'zoom:reset 縮放重設至 100%');
   core.onCommand('zoom:fit-width');
-  assert(core.getState().zoom === 125, 'zoom:fit-width 適合頁寬');
+  // U5-m：fit-width 改真算（頁寬 794px 塞進可視區），不再寫死 125。
+  // node 測無 DOM／無 window → 誠實退回 100%（DOM 可得時由 live 探針驗證）。
+  assert(core.getState().zoom === 100, 'zoom:fit-width（無 DOM 環境退 100%）');
 
   // 測試檢視模式切換
   core.onCommand('view:mode:read');

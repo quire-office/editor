@@ -31,7 +31,11 @@ function mimeFromName(name) {
 
 export class QWordUI {
   constructor() {
-    this.core = new QWordCore();
+    // U5-m：fitPageWidth 用 lazy getter 向 shell 要錨點（構造期 DOM 未抓，必須
+    // 呼叫時才解析）。錨＝滾動視窗 .qword-workspace（overflow:auto 的可視寬），
+    // 不是 pageContainer——後者是內容寬（794px），拿它算等于沒算（run 93 實錄
+    // 96%＝(794−32)/794，塞不進 390px 手機視窗）。
+    this.core = new QWordCore({ getFitWidthEl: () => document.querySelector('.qword-workspace') || this.pageContainer });
     this.adapter = new EngineAdapter();
     this.activePopover = null;
     this.rulerDragState = null;
@@ -661,7 +665,27 @@ export class QWordUI {
     });
 
     if (this.inputSink) {
-      this.inputSink.addEventListener('input', () => {
+      // U5-m（手機 IME）：真機中文鍵盤事件序（CDP 實錄）＝compositionstart →
+      // input(isComposing=true, value=拼音) → input(isComposing=true, value=中文)
+      // → compositionend(data=中文)。舊 handler 不辨 isComposing，合成中途的
+      // **拼音**就被寫進文件（「zhong」混入正文＋commit 再入一次＝手機打字
+      // 必亂碼，用戶「手機無法編輯」的輸入面根因）。修法：合成期 input 一律
+      // 略過（也不清 value，清 value 會打断 IME 合成窗）；compositionend 才是
+      // 定稿字串的唯一入文點。value 在 compositionend 清空＝老 Safari
+      // 「compositionend 後才發 isComposing=false input」的第二道防線（屆時
+      // value 已空，no-op）。
+      this._composing = false;
+      this.inputSink.addEventListener('compositionstart', () => { this._composing = true; });
+      this.inputSink.addEventListener('compositionend', (e) => {
+        this._composing = false;
+        const text = (e && e.data) || '';
+        this.inputSink.value = '';
+        if (text && this.adapter.engine) {
+          this.handleType({ text });
+        }
+      });
+      this.inputSink.addEventListener('input', (e) => {
+        if (this._composing || (e && e.isComposing)) return;
         const val = this.inputSink.value;
         this.inputSink.value = '';
         if (val && this.adapter.engine) {
@@ -749,6 +773,49 @@ export class QWordUI {
     this.renderCaret();
   }
 
+  /**
+   * U5-m：caret 垂直錨定＝渲染面墨跡真值（用戶 11-26 手機＋桌面：「比文字小且偏上」）。
+   * 機械實錄（同框絕對座標，clean 行窗）：12pt 段 caret [118,134]px vs 墨跡
+   * [122,136]px——頂高出 4px、底差 2px，整條**上移**；手機態同偏移（dTop≈3.7px）。
+   * 根因：caretRect.y＝行框頂、height＝em 字級，而字形墨跡以基線為軸
+   * （renderer fillText 於 y＋size）——em 框與墨跡本來就差 ascent/descent 的分配。
+   * 修法（禁第二把尺）：基準線用 renderer fillText 的同一算式 (Text.y＋size)，
+   * ascent/descent 用同頁 canvas、renderer 同款 font 串對該行 Text 項做
+   * measureText().actualBoundingBox——畫面墨跡正是這支尺畫的，caret 蓋墨跡＝
+   * 「高度與文字一致、垂直居中」由幾何保证，跨字級自動對（26pt 標題同式）。
+   * 取不到 Text 項／度量支援缺位（empty string 全零框）→ 回 null，呼叫端退 em 框。
+   */
+  _measureInkAt(canvas, pageIdx, rectJson, sizePt) {
+    try {
+      const dl = this.adapter.getPageDisplayList(pageIdx);
+      if (!dl || !Array.isArray(dl.items)) return null;
+      let best = null; let bestD = Infinity;
+      for (const it of dl.items) {
+        if (!it.Text) continue;
+        const t = it.Text;
+        // 同行窗：Text.y 是行框頂（渲染器基線＝y＋size），caret y 落在 [y, y＋size]
+        const size = t.size_pt || sizePt;
+        if (rectJson.y_pt < t.y - 2 || rectJson.y_pt > t.y + size + 2) continue;
+        const dx = Math.abs((t.x || 0) - rectJson.x_pt);
+        if (dx < bestD) { bestD = dx; best = t; }
+      }
+      if (!best) return null;
+      const scale = canvas.width / (dl.width_pt || 595);
+      const ctx = canvas.getContext('2d');
+      const px = (best.size_pt || sizePt) * scale;
+      const flags = best.flags || 0;
+      ctx.font = `${flags & 2 ? 'italic ' : ''}${flags & 1 ? 'bold ' : ''}${px}px "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif`;
+      const m = ctx.measureText(best.text || '');
+      const asc = m.actualBoundingBoxAscent || 0;
+      const desc = m.actualBoundingBoxDescent || 0;
+      if (asc < px * 0.4) return null; // empty/度量缺位→退 em 框
+      const baselinePx = (best.y + (best.size_pt || sizePt)) * scale;
+      return { topPx: baselinePx - asc, heightPx: asc + desc };
+    } catch {
+      return null;
+    }
+  }
+
   renderCaret() {
     if (!this.adapter.engine || !this.adapter.caret) return;
     const { para, cp } = this.adapter.caret;
@@ -772,9 +839,20 @@ export class QWordUI {
     const widthPt = (dl && dl.width_pt) || 595;
     const scale = canvas.width / widthPt;
 
+    const m = this._measureInkAt(canvas, pageIdx, rectJson, rectJson.height_pt || 12);
     caretEl.style.left = `${Math.round(rectJson.x_pt * scale)}px`;
-    caretEl.style.top = `${Math.round(rectJson.y_pt * scale)}px`;
-    caretEl.style.height = `${Math.round((rectJson.height_pt || 12) * scale)}px`;
+    if (m) {
+      // style 單位＝未變換前的版面 px（transform scale 由瀏覽器統一套在容器）。
+      // layout/backing 恆 1（renderer 只設 width 屬性、CSS 不覆寫寬），用
+      // offsetWidth（不含 transform）而非 getBoundingClientRect（含 transform）
+      // ——fit-width 態 rect.width＝backing×zoom，誤用會把 caret 放大兩次。
+      const cssPerBack = (canvas.offsetWidth || canvas.width || 1) / (canvas.width || 1);
+      caretEl.style.top = `${Math.round(m.topPx * cssPerBack)}px`;
+      caretEl.style.height = `${Math.round(m.heightPx * cssPerBack)}px`;
+    } else {
+      caretEl.style.top = `${Math.round(rectJson.y_pt * scale)}px`;
+      caretEl.style.height = `${Math.round((rectJson.height_pt || 12) * scale)}px`;
+    }
     caretEl.style.display = 'block';
 
     if (this.inputSink) {
