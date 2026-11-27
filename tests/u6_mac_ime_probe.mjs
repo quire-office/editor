@@ -296,6 +296,14 @@ async function runRound(dpr) {
   })()`));
   const s4 = JSON.parse(await dump());
   const winOpen4 = s4.trace.some((x) => x.t === 'compositionupdate');
+  // 無論判定結果如何都要收掉合成窗（否則殘留的合成態會污染下一盞燈的事件序，
+  // 讓回塞鑑別的紅數無法歸因到單一缺陷——探針收尾紀律，非放寬斷言）。
+  const closeComposition = async () => {
+    await cdp.send('Input.imeSetComposition', { text: '', selectionStart: 0, selectionEnd: 0 });
+    await sleep(150);
+    await cdp.send('Input.insertText', { text: '' });
+    await sleep(150);
+  };
   if (!winOpen4) fail(`${tag}/L4 合成回顯鎖`, 'compositionupdate 缺席——事件序未成立');
   else if (!mid4.ov || !mid4.ov.visible) fail(`${tag}/L4 合成回顯鎖`, '合成期 DOM 無可見的合成回顯 overlay（用戶「打了沒反應」根因）');
   else if (!String(mid4.ov.text).includes('zhong')) fail(`${tag}/L4 合成回顯鎖`, `overlay 文字=${JSON.stringify(mid4.ov.text)} 未含拼音`);
@@ -315,6 +323,7 @@ async function runRound(dpr) {
     else if (!after4.ovGone) fail(`${tag}/L4 合成回顯鎖`, 'compositionend 後合成 overlay 未清除');
     else pass(`${tag}/L4 合成回顯鎖`, `合成期回顯「zhong」（零引擎寫入）→ 定稿入文「中文」＋overlay 清除`);
   }
+  await closeComposition();   // 失敗路徑也不得把合成窗留給下一盞燈
 
   // ---------- L5 入文點快照鎖 ----------
   // 合成窗開著時以另一途徑（真點擊另一段）移動 caret → 定稿仍落 compositionstart 快照點。
