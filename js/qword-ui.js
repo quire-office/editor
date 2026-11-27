@@ -42,6 +42,13 @@ export class QWordUI {
     this.pageWrappers = [];
     // U4e S1：巢狀表游標拒絕旗標（resolveRootSlot 記、_requireTableTarget 消費）
     this._nestedCaretBlocked = false;
+    // U6-MAC-IME：合成窗自持旗標（compositionstart/update 設真、compositionend 或
+    // watchdog 清假）＋入文點快照＋合成回顯元素。宣告於構造期：keydown handler 與
+    // 探針都要在第一次合成事件之前就能讀到確定的 false，不可依賴 undefined 摺疊。
+    this._composing = false;
+    this._compositionStartCaret = null;
+    this._compositionWatchdog = null;
+    this.compositionEl = null;
 
     // 將核心、外殼與引擎適配器掛載至 window 供探針與外部腳本呼叫
     window.QWordCore = this.core;
@@ -532,6 +539,21 @@ export class QWordUI {
         return;
       }
 
+      // U6-MAC-IME 修法1（主防線）：合成窗開著時，任何鍵都**完整交給 IME**——不
+      // preventDefault、不進任何分支。macOS 注音/倉頡選字確認的 Enter 與刪拼音的
+      // Backspace，其 keydown 會照常派發到文件（用戶截圖「今天／天氣晴／我想要吃／
+      // 蛋餅」每個詞各占一行＝commit 的 Enter 被外殼當分段；Backspace 同型漏洞＝
+      // 同時被 IME 刪拼音、被外殼刪正文）。`e.isComposing` 在 Safari 歷史不可靠，
+      // 故主防線用本殼自持旗標 `_composing`（compositionstart/end 維護），U5-m 只
+      // 補了 input/compositionend 路徑、keydown 路徑一直漏著。
+      // U6_IME_BUGGY=1 → 摘除 Enter 守衛、=2 → 摘除 Backspace 守衛（探針回塞鑑別，
+      // 求值於事件時而非模組層快照，見 _u6Buggy 註解）。
+      const u6BypassEnter = this._u6Buggy(1) && e.key === 'Enter';
+      const u6BypassBack = this._u6Buggy(2) && e.key === 'Backspace';
+      if (this._composing && !u6BypassEnter && !u6BypassBack) return;
+      // 二道防線：事件自帶的合成態（Chrome 可靠、Safari 歷史漏報，故只作補強不作主防）。
+      if (!this._composing && !u6BypassEnter && !u6BypassBack && (e.isComposing || e.keyCode === 229)) return;
+
       // Ctrl+S / Cmd+S 存檔
       if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
@@ -674,16 +696,53 @@ export class QWordUI {
       // 定稿字串的唯一入文點。value 在 compositionend 清空＝老 Safari
       // 「compositionend 後才發 isComposing=false input」的第二道防線（屆時
       // value 已空，no-op）。
+      // U6-MAC-IME 追加：同一旗標也要管住 keydown（見 document keydown 頂部守衛）、
+      // 記入文點快照、並把拼音回顯畫在游標處（合成期零引擎寫入鐵律不破）。
       this._composing = false;
-      this.inputSink.addEventListener('compositionstart', () => { this._composing = true; });
+
+      this.inputSink.addEventListener('compositionstart', (e) => {
+        this._composing = true;
+        // 修法4（入文點快照）：定稿入文點以**合成窗開啟當下**的 caret 為準。macOS
+        // 常見「compositionupdate 多輪＋commit 序」下，合成期若caret 被其他途徑移動
+        // （點擊另一段／Ribbon 操作），用當下 caret 入文會與使用者看到、並正在候選
+        // 的那個位置分家——候選窗是開在快照點的。取捨：合成期caret 被外部移動時以
+        // 快照為準（那是使用者實際合成的位置），並把畫面游標拉回快照點使所見即所入。
+        this._compositionStartCaret = this.adapter.caret ? { ...this.adapter.caret } : null;
+        this._armCompositionWatchdog();
+        this._showComposition((e && e.data) || '');
+      });
+
+      this.inputSink.addEventListener('compositionupdate', (e) => {
+        // 合成中途：只畫回顯，**嚴禁**任何引擎寫入（U5-m 鐵律；拼音只允許存在於
+        // inputSink.value 與本 overlay 文字節點）。
+        if (!this._composing) this._composing = true;   // 漏掉 start 的瀏覽器尾巴
+        this._armCompositionWatchdog();
+        this._showComposition((e && e.data) || '');
+      });
+
       this.inputSink.addEventListener('compositionend', (e) => {
         this._composing = false;
+        this._disarmCompositionWatchdog();
+        const snapshot = this._compositionStartCaret;
+        this._compositionStartCaret = null;
+        this._hideComposition();
         const text = (e && e.data) || '';
+        const sinkVal = this.inputSink.value;
         this.inputSink.value = '';
-        if (text && this.adapter.engine) {
-          this.handleType({ text });
+        // 修法5（空 data 防呆，不得回退）：macOS 有些路徑 e.data 空但 sink.value 已含
+        // 定稿串（老 Safari 尾巴）；兩者都空才是真 no-op。
+        const commit = text || (sinkVal && sinkVal !== this._compositionPinyin ? sinkVal : '');
+        if (!commit || !this.adapter.engine) return;
+        // 修法4：入文前把 caret 還原到快照點（合成期若被外部移動，以快照為準）。
+        // U6_IME_BUGGY=5 → 退回「用當下 caret 入文」（修前行為，探針 L5 必紅）。
+        if (!this._u6Buggy(5) && snapshot && this.adapter.caret &&
+            (snapshot.para !== this.adapter.caret.para || snapshot.cp !== this.adapter.caret.cp)) {
+          this.adapter.caret = { ...snapshot };
+          this.adapter.selection = null;
         }
+        this.handleType({ text: commit });
       });
+
       this.inputSink.addEventListener('input', (e) => {
         if (this._composing || (e && e.isComposing)) return;
         const val = this.inputSink.value;
@@ -693,6 +752,118 @@ export class QWordUI {
         }
       });
     }
+  }
+
+  /**
+   * U6-MAC-IME 回塞鑑別鎖：`U6_IME_BUGGY` 支援 '1'..'5' 與 'all'（逗號並選）。
+   * **必須於事件時求值**（本函式每次呼叫都重讀 env），不可在模組層快照成常數——
+   * 探針注入 `window.process.env` 的時點可能晚於模組求值，快照式鎖會咬不住
+   * ＝回塞態靜默變 good 態（假綠）。正常瀏覽器無 process，恆回 false。
+   */
+  _u6Buggy(n) {
+    try {
+      const v = (typeof process !== 'undefined' && process && process.env && process.env.U6_IME_BUGGY) || '';
+      if (!v) return false;
+      const set = String(v).split(',').map((s) => s.trim());
+      return set.includes('all') || set.includes(String(n));
+    } catch { return false; }
+  }
+
+  /**
+   * U6-MAC-IME 修法1 watchdog：compositionstart 起 8 秒無合成事件（update/end）自動清
+   * `_composing`。**選此實現（計時器）而非 focus 離開即清的理由**：macOS 選字時焦點會
+   * 短暫跳到候選窗/輸入法自己的面板，以 focus 離開作判據會在正常合成中途誤清旗標，
+   * 反而把 Enter 放進外殼分支（＝缺陷復活）；計時器只在「真的卡住」（compositionend
+   * 遺失）時兜底，且每次 update/end 重新續期，正常長句合成不受影響。
+   */
+  _armCompositionWatchdog() {
+    this._disarmCompositionWatchdog();
+    this._compositionWatchdog = setTimeout(() => {
+      this._compositionWatchdog = null;
+      if (!this._composing) return;
+      // 誠實收尾：旗標清了，回顯與快照也要清，否則殘留虛構的「合成中」下劃線。
+      this._composing = false;
+      this._compositionStartCaret = null;
+      this._hideComposition();
+      console.warn('[QWordUI] U6 合成窗 watchdog：8 秒無合成事件，自動解除合成態（防永久卡死）');
+    }, 8000);
+  }
+
+  _disarmCompositionWatchdog() {
+    if (this._compositionWatchdog) {
+      clearTimeout(this._compositionWatchdog);
+      this._compositionWatchdog = null;
+    }
+  }
+
+  /**
+   * U6-MAC-IME 修法3：合成期内聯回顯（用戶「打字後不會即時顯示」的直接对症）。
+   * 挂在 caretLayer（與 .qword-caret 同一個絕對定位容器、同一把 pt→CSS px 尺），
+   * 嚴禁另造座標換算。虛線下劃線＝「合成中」態（IM 慣例）。U6_IME_BUGGY=4 → 退化為
+   * 完全不回顯（修前行為）。
+   */
+  _showComposition(data) {
+    if (this._u6Buggy(4)) return;
+    const text = String(data == null ? '' : data);
+    if (!text) { this._hideComposition(); return; }
+    this._compositionPinyin = text;
+    const pos = this._caretScreenPos();
+    if (!pos) return;
+    if (!this.compositionEl || !this.compositionEl.isConnected) {
+      const layer = pos.wrapper.querySelector('.qword-caret-layer');
+      if (!layer) return;
+      const el = document.createElement('div');
+      el.className = 'qword-composition-overlay';
+      el.setAttribute('aria-hidden', 'true');
+      layer.appendChild(el);
+      this.compositionEl = el;
+    }
+    const el = this.compositionEl;
+    el.textContent = text;
+    el.style.left = `${pos.leftPx}px`;
+    el.style.top = `${pos.topPx}px`;
+    el.style.height = `${pos.heightPx}px`;
+    el.style.fontSize = `${pos.fontPx}px`;
+    el.style.lineHeight = `${pos.heightPx}px`;
+    el.style.display = 'inline-block';
+  }
+
+  _hideComposition() {
+    this._compositionPinyin = '';
+    if (this.compositionEl) {
+      this.compositionEl.remove();
+      this.compositionEl = null;
+    }
+  }
+
+  /**
+   * U6-MAC-IME 共用尺：caret 的層內 CSS px 位置（與 renderCaret 畫游標**同一算式**，
+   * 嚴禁第二把尺；DPR 高清化後 layer 單位仍是未變換前的版面 CSS px，故一律
+   * offsetWidth，不碰 getBoundingClientRect 的含 transform 寬）。
+   */
+  _caretScreenPos() {
+    if (!this.adapter.engine || !this.adapter.caret) return null;
+    const { para, cp } = this.adapter.caret;
+    const rectJson = this.adapter.caretRect(para, cp);
+    if (!rectJson) return null;
+    const wrapper = this.pageWrappers && this.pageWrappers[rectJson.page];
+    if (!wrapper) return null;
+    const canvas = wrapper.querySelector('.qword-page-canvas');
+    if (!canvas) return null;
+    const dl = this.adapter.getPageDisplayList(rectJson.page);
+    const widthPt = (dl && dl.width_pt) || 595;
+    const scale = (canvas.offsetWidth || canvas.width) / widthPt;
+    const m = this._measureInkAt(canvas, rectJson.page, rectJson, rectJson.height_pt || 12);
+    const cssPerBack = (canvas.offsetWidth || canvas.width || 1) / (canvas.width || 1);
+    const topPx = m ? m.topPx * cssPerBack : rectJson.y_pt * scale;
+    const heightPx = m ? m.heightPx * cssPerBack : (rectJson.height_pt || 12) * scale;
+    return {
+      wrapper, page: rectJson.page,
+      leftPx: Math.round(rectJson.x_pt * scale),
+      topPx: Math.round(topPx),
+      heightPx: Math.max(1, Math.round(heightPx)),
+      fontPx: Math.max(1, Math.round(heightPx * 0.82)),
+    };
   }
 
   async loadFile(bytes, fileName) {
@@ -859,8 +1030,33 @@ export class QWordUI {
     caretEl.style.display = 'block';
 
     if (this.inputSink) {
+      // U6-MAC-IME 修法2：把輸入錨點搬到畫面游標處（候選窗錨在 DOM 插入點，離屏
+      // =-9999px 時 macOS 候選窗开到螢幕外＋看不到任何回顯）。尺＝剛畫好的那条
+      // .qword-caret 自己的 rect（viewport CSS px），**不另立第二套 pt→px 換算**
+      // （嚴禁第二把尺；zoom transform 與捲動由瀏覽器算好的 rect 直接 inherit）。
+      this._anchorInputSink(caretEl);
       this.inputSink.focus();
     }
+  }
+
+  /**
+   * U6-MAC-IME 修法2：inputSink 錨到游標螢幕座標。採 position: fixed ＋剛繪製的
+   * caret 元素 getBoundingClientRect（＝使用者實際看到的那条游標，含 zoom/捲動），
+   * 維持 opacity:0 ＋ 1px 不可見姿態；**不得**再用 -9999px 離屏。
+   * U6_IME_BUGGY=3 → 退回 -9999 離屏（修前行為，探針 L3 必紅）。
+   */
+  _anchorInputSink(caretEl) {
+    if (!this.inputSink) return;
+    if (this._u6Buggy(3)) {
+      this.inputSink.style.left = '-9999px';
+      this.inputSink.style.top = '-9999px';
+      return;
+    }
+    if (!caretEl || caretEl.style.display === 'none') return;
+    const r = caretEl.getBoundingClientRect();
+    if (!Number.isFinite(r.left) || !Number.isFinite(r.top)) return;
+    this.inputSink.style.left = `${Math.round(r.left)}px`;
+    this.inputSink.style.top = `${Math.round(r.top)}px`;
   }
 
   renderSelection() {

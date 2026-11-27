@@ -285,8 +285,13 @@ async function runRound(dpr) {
     const A = window.QWordEngine;
     const all = [];
     for (let p = 0; p < A.paragraphCount(); p++) all.push(A.paragraphText(p) || '');
+    // 「正文 DOM 不含金拼音」＝引擎渲染的正文不可含拼音；合成回顯 overlay 本身含拼音
+    // 是修法3 的**要求**，故取 innerText 前先摘掉 overlay 子樹（不是放寬：正文本體逐字照比）。
+    const pc = document.querySelector('.qword-page-container');
+    const clone = pc.cloneNode(true);
+    clone.querySelectorAll('.qword-composition-overlay').forEach(function(n){ n.remove(); });
     return JSON.stringify({ ov: ov ? { text: ov.textContent, visible: getComputedStyle(ov).display !== 'none' && getComputedStyle(ov).visibility !== 'hidden', cls: ov.className } : null,
-      engineHas: all.some(t => t.includes('zhong')), bodyHas: (document.querySelector('.qword-page-container').innerText || '').includes('zhong'),
+      engineHas: all.some(t => t.includes('zhong')), bodyHas: (clone.innerText || '').includes('zhong'),
       ovInCaretLayer: !!(ov && ov.closest('.qword-caret-layer')) });
   })()`));
   const s4 = JSON.parse(await dump());
@@ -334,7 +339,7 @@ async function runRound(dpr) {
     const qText = s5.paras[Q] || '';
     const landedSnapshot = pText.length === Array.from(snapP5).length + 2 && pText.includes('課程');
     const drifted = qText !== snapQ5;
-    if (!winOpen5) fail(`${tag}/L5 入文點快照鎖`, '合成窗未開——測試無效');
+    if (!winOpen5) fail(`${tag}/L5 入文點快照鎖`, `合成窗未開——測試無效｜trace=${JSON.stringify(s5.trace)} caret=${JSON.stringify(s5.caret)}`);
     else if (drifted) fail(`${tag}/L5 入文點快照鎖`, `定稿落進合成期被移動後的段 ${Q}（=${JSON.stringify(qText.slice(-8))}）而非 compositionstart 快照段 ${P}`);
     else if (!landedSnapshot) fail(`${tag}/L5 入文點快照鎖`, `段 ${P} 未見快照點入文：${JSON.stringify(pText.slice(-10))}`);
     else pass(`${tag}/L5 入文點快照鎖`, '合成期 caret 被外部移動 → 定稿仍落 compositionstart 快照點');
