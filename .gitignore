@@ -6,3 +6,6 @@ node_modules/
 evidence/
 tmp/
 evidence-live/
+
+# kanban 板 worktree（PM 2026-11-27）
+.worktrees/
