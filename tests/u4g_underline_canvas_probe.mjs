@@ -233,7 +233,10 @@ async function runInPage(baseUrl, buggy, opts) {
     const mctx = canvas.getContext('2d');
     const italic = t.flags & 2 ? 'italic ' : '';
     const bold = t.flags & 1 ? 'bold ' : '';
-    mctx.font = `${italic}${bold}${px}px "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif`;
+    // 量測窗口與渲染器同尺（U5-n）：渲染器字型堆疊第一順位是引擎內嵌家族
+    // 「Quire Noto Sans TC」（FontFace 已註冊），窗口若用系統字型算寬，寬度
+    // 差 1.24× 會把 run 統計整段位移（對照實驗：dashed maxRun 13 假紅）。
+    mctx.font = `${italic}${bold}${px}px "Quire Noto Sans TC", "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif`;
     const wPx = mctx.measureText(t.text).width;
     const x0 = Math.floor(t.x * scale);
     const bx0 = Math.max(0, x0 + 4);
@@ -524,6 +527,10 @@ async function main() {
     sock.send(JSON.stringify({ id, method, params }));
   });
   await send('Page.enable');
+  // 教訓（U5-n 對照實驗坐實）：本針**不得**加 setDeviceMetricsOverride——
+  // 即使 dpr=1，覆寫 viewport（1280×1400）也會改變頁面佈局態，B 層合成態的
+  // dash run 窗隨之位移（maxRun 9→13 假紅）。像素窗以「無覆寫、dpr=1 原生
+  // 態」校準；生產路徑的 DPR 正確性由 u5_n_font_ruler_probe E3 把關。
   await send('Page.navigate', { url: BASE_URL });
   await send('Runtime.enable');
   for (let i = 0; i < 240; i += 1) {
@@ -531,7 +538,10 @@ async function main() {
     if (r.result.value === 'complete') break;
     await new Promise((res) => setTimeout(res, 250));
   }
-  const opts = { growSteps: GROW_STEPS, wavyPath: WAVY_FIXTURE_REL, synthText: 'QUICKBROWNFOXJUMPS', synthSizePt: 26 };
+  // U5-n：換 Quire 內嵌字型渲染後，'Q'/'J' 的字尾沉入底線帶與 dash run 連筆
+  // （實驗實錄：Q/J 態 dotted maxRun=9／dashed=13，去 Q/J 態＝4／11），破坏
+  // 「零降部字串」前提。斷言語義（點級 run 短）不變，字串改用無下探尾字形。
+  const opts = { growSteps: GROW_STEPS, wavyPath: WAVY_FIXTURE_REL, synthText: 'UICKBROWNFOXUMPS', synthSizePt: 26 };
   const out = await send('Runtime.evaluate', {
     expression: `(${runInPage.toString()})(${JSON.stringify(BASE_URL)}, ${BUGGY ? 'true' : 'false'}, ${JSON.stringify(opts)})`,
     returnByValue: true, awaitPromise: true, timeout: 600000

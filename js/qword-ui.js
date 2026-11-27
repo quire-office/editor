@@ -804,7 +804,7 @@ export class QWordUI {
       const ctx = canvas.getContext('2d');
       const px = (best.size_pt || sizePt) * scale;
       const flags = best.flags || 0;
-      ctx.font = `${flags & 2 ? 'italic ' : ''}${flags & 1 ? 'bold ' : ''}${px}px "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif`;
+      ctx.font = `${flags & 2 ? 'italic ' : ''}${flags & 1 ? 'bold ' : ''}${px}px "Quire Noto Sans TC", "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif`;
       const m = ctx.measureText(best.text || '');
       const asc = m.actualBoundingBoxAscent || 0;
       const desc = m.actualBoundingBoxDescent || 0;
@@ -837,7 +837,10 @@ export class QWordUI {
 
     const dl = this.adapter.getPageDisplayList(pageIdx);
     const widthPt = (dl && dl.width_pt) || 595;
-    const scale = canvas.width / widthPt;
+    // pt→CSS px 用 offsetWidth（版面 CSS 單位、不含 transform）而非 canvas.width：
+    // DPR 高清化（11-26 模糊案）後 canvas.width＝CSS 寬×DPR，caret layer 是 DOM
+    // 疊層、單位是 CSS px，誤用 backing 寬會在手機上把 caret 位置放大 DPR 倍。
+    const scale = (canvas.offsetWidth || canvas.width) / widthPt;
 
     const m = this._measureInkAt(canvas, pageIdx, rectJson, rectJson.height_pt || 12);
     caretEl.style.left = `${Math.round(rectJson.x_pt * scale)}px`;
@@ -917,7 +920,8 @@ export class QWordUI {
 
     const dl = this.adapter.getPageDisplayList(rectData.page);
     const widthPt = (dl && dl.width_pt) || 595;
-    const scale = canvas.width / widthPt;
+    // 同上（DPR 案）：選取框是 DOM 疊層，pt→CSS px 一律 offsetWidth。
+    const scale = (canvas.offsetWidth || canvas.width) / widthPt;
 
     const div = document.createElement('div');
     div.className = 'qword-selection-rect';

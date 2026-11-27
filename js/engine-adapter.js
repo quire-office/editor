@@ -861,6 +861,26 @@ export class EngineAdapter {
     // 瀏覽器標準 ESM 載入
     await init();
     this.isInitialized = true;
+    // U5-n（caret 飄移＋手機模糊案）：把引擎內嵌排版字型註冊成 webfont，
+    // 讓 canvas 渲染器畫的字與引擎排版 advance 用**同一把尺**。手機無
+    // Noto Sans TC 時落回系統字型＝caret（引擎 advance）與墨跡（系統字型寬）
+    // 分離累積，打字越長飄越遠（用戶 11-26 實錄「飄到超級前面」）。註冊
+    // 失敗只降級回舊行為（落回系統字型），不阻擋啟動。家族名取自引擎
+    // （單一真值源），渲染器字型堆疊第一順位與之同字串。
+    try {
+      if (typeof WasmEngine?.embeddedFontBytes === 'function') {
+        const bytes = WasmEngine.embeddedFontBytes();
+        const family = WasmEngine.embeddedFontFamily();
+        if (bytes && bytes.length && family && typeof FontFace === 'function') {
+          const face = new FontFace(family, bytes.slice().buffer);
+          await face.load();
+          document.fonts.add(face);
+          console.log(`[EngineAdapter] 內嵌字型已註冊：${family}（${bytes.length} bytes）`);
+        }
+      }
+    } catch (e) {
+      console.warn('[EngineAdapter] 內嵌字型註冊失敗（降級：渲染落回系統字型）:', e);
+    }
   }
 
   /**

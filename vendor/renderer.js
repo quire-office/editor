@@ -272,8 +272,17 @@ export async function renderDisplayListToCanvas(dl, canvas, displayWidthPx = DEF
   if (renderToken !== myToken) return null;
   canvas.__quireRenderToken = myToken;
 
-  canvas.width = Math.round(widthPt * scale);
-  canvas.height = Math.round(heightPt * scale);
+  // DPR 高清化（用戶 11-26 實錄「開啟的檔案編輯畫面有點模糊」）：舊行為
+  // backing store 固定 794px，手機 DPR=3 時一個 backing 畫素要攤到三個物理
+  // 畫素＝三分之一解析度被拉伸顯示（桌面 DPR=1 看不出來，探針全綠放過）。
+  // CSS 版面尺寸維持 displayWidthPx（佈局與 DOM 疊層座標系不變），backing
+  // 乘 DPR，ctx 整體 setTransform 讓下方全部繪製碼照 CSS 單位零改動。
+  const dpr = Math.max(1, (typeof devicePixelRatio === "number" && devicePixelRatio) || 1);
+  canvas.style.width = `${Math.round(widthPt * scale)}px`;
+  canvas.style.height = `${Math.round(heightPt * scale)}px`;
+  canvas.width = Math.round(widthPt * scale * dpr);
+  canvas.height = Math.round(heightPt * scale * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   // 填白色紙張背景
   ctx.fillStyle = "#ffffff";
@@ -330,7 +339,7 @@ export async function renderDisplayListToCanvas(dl, canvas, displayWidthPx = DEF
       const bold = flags & 1 ? "bold " : "";
       const px = t.size_pt * scale;
 
-      ctx.font = `${italic}${bold}${px}px "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif`;
+      ctx.font = `${italic}${bold}${px}px "Quire Noto Sans TC", "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif`;
       const colorCss = argbToCss(t.color_argb ?? 0xff000000);
       ctx.fillStyle = colorCss;
 
