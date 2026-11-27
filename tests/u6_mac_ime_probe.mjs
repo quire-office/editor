@@ -2,7 +2,7 @@
  * u6_mac_ime_probe.mjs — macOS 繁中輸入法三缺陷機械判據（U6-MAC-IME，先紅後綠）
  *
  * 用戶實錄（2026-11-27，Mac Safari/Chrome 繁中鍵盤）：
- *   (1) 打字後不會即時顯示；(2) IME 選字確認按 Enter **必定換行**（每個詞各占一行）；
+ *   (1) 打字後不會即時顯示；(2) IME 選字確認按 Enter **必定換行**（每個詞各佔一行）；
  *   (3) 中文輸入時 cursor 與畫面實際落點不一致。
  *
  * 本卡鎖五盞燈（CDP 模擬 macOS 注音/倉頡事件序）：
@@ -269,7 +269,7 @@ async function runRound(dpr) {
   const dy = g3.caret ? Math.abs(g3.sink.top - g3.caret.top) : Infinity;
   const offscreenConst = Math.abs(g3.sink.left + 9999) < 1 && Math.abs(g3.sink.top + 9999) < 1;
   if (!g3.caret) fail(`${tag}/L3 候選窗錨點鎖`, '找不到可見的 .qword-caret，無法比對尺');
-  else if (offscreenConst) fail(`${tag}/L3 候選窗錨點鎖`, `inputSink 仍在 -9999 離屏（left=${g3.sink.left}, top=${g3.sink.top}）→ macOS 候選窗开到螢幕外`);
+  else if (offscreenConst) fail(`${tag}/L3 候選窗錨點鎖`, `inputSink 仍在 -9999 離屏（left=${g3.sink.left}, top=${g3.sink.top}）→ macOS 候選窗開到螢幕外`);
   else if (dx > 2 || dy > 2) fail(`${tag}/L3 候選窗錨點鎖`, `sink(${Math.round(g3.sink.left)},${Math.round(g3.sink.top)}) 與畫面游標(${Math.round(g3.caret.left)},${Math.round(g3.caret.top)}) 差 dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} >2px`);
   else if (Number(g3.opacity) > 0) fail(`${tag}/L3 候選窗錨點鎖`, `sink 未維持不可見姿態 opacity=${g3.opacity}`);
   else pass(`${tag}/L3 候選窗錨點鎖`, `sink 錨在游標 dx=${dx.toFixed(1)} dy=${dy.toFixed(1)}px（≤2px）、opacity=${g3.opacity}、pointer-events=${g3.pe}`);

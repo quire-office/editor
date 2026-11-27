@@ -542,7 +542,7 @@ export class QWordUI {
       // U6-MAC-IME 修法1（主防線）：合成窗開著時，任何鍵都**完整交給 IME**——不
       // preventDefault、不進任何分支。macOS 注音/倉頡選字確認的 Enter 與刪拼音的
       // Backspace，其 keydown 會照常派發到文件（用戶截圖「今天／天氣晴／我想要吃／
-      // 蛋餅」每個詞各占一行＝commit 的 Enter 被外殼當分段；Backspace 同型漏洞＝
+      // 蛋餅」每個詞各佔一行＝commit 的 Enter 被外殼當分段；Backspace 同型漏洞＝
       // 同時被 IME 刪拼音、被外殼刪正文）。`e.isComposing` 在 Safari 歷史不可靠，
       // 故主防線用本殼自持旗標 `_composing`（compositionstart/end 維護），U5-m 只
       // 補了 input/compositionend 路徑、keydown 路徑一直漏著。
@@ -797,8 +797,8 @@ export class QWordUI {
   }
 
   /**
-   * U6-MAC-IME 修法3：合成期内聯回顯（用戶「打字後不會即時顯示」的直接对症）。
-   * 挂在 caretLayer（與 .qword-caret 同一個絕對定位容器、同一把 pt→CSS px 尺），
+   * U6-MAC-IME 修法3：合成期內聯回顯（用戶「打字後不會即時顯示」的直接對症）。
+   * 掛在 caretLayer（與 .qword-caret 同一個絕對定位容器、同一把 pt→CSS px 尺），
    * 嚴禁另造座標換算。虛線下劃線＝「合成中」態（IM 慣例）。U6_IME_BUGGY=4 → 退化為
    * 完全不回顯（修前行為）。
    */
@@ -1031,7 +1031,7 @@ export class QWordUI {
 
     if (this.inputSink) {
       // U6-MAC-IME 修法2：把輸入錨點搬到畫面游標處（候選窗錨在 DOM 插入點，離屏
-      // =-9999px 時 macOS 候選窗开到螢幕外＋看不到任何回顯）。尺＝剛畫好的那条
+      // =-9999px 時 macOS 候選窗開到螢幕外＋看不到任何回顯）。尺＝剛畫好的那條
       // .qword-caret 自己的 rect（viewport CSS px），**不另立第二套 pt→px 換算**
       // （嚴禁第二把尺；zoom transform 與捲動由瀏覽器算好的 rect 直接 inherit）。
       this._anchorInputSink(caretEl);
@@ -1041,7 +1041,7 @@ export class QWordUI {
 
   /**
    * U6-MAC-IME 修法2：inputSink 錨到游標螢幕座標。採 position: fixed ＋剛繪製的
-   * caret 元素 getBoundingClientRect（＝使用者實際看到的那条游標，含 zoom/捲動），
+   * caret 元素 getBoundingClientRect（＝使用者實際看到的那條游標，含 zoom/捲動），
    * 維持 opacity:0 ＋ 1px 不可見姿態；**不得**再用 -9999px 離屏。
    * U6_IME_BUGGY=3 → 退回 -9999 離屏（修前行為，探針 L3 必紅）。
    */

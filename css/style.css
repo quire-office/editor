@@ -1185,7 +1185,7 @@ body, html {
 .qword-input-sink {
   position: fixed;
   /* U6-MAC-IME 修法2：不得再離屏 -9999px——macOS 繁中候選窗錨在 DOM 插入點，
-     離屏＝候選窗开到螢幕外＋合成期零回饋（用戶實錄）。座標由 renderCaret()
+     離屏＝候選窗開到螢幕外＋合成期零回饋（用戶實錄）。座標由 renderCaret()
      每輪搬到位（_anchorInputSink），這裡只給不可見的起手姿態：opacity 0 ＋ 1px，
      pointer-events:none 保持「永不搶滑鼠」。 */
   left: 0px;
@@ -1199,7 +1199,7 @@ body, html {
   outline: none;
 }
 
-/* U6-MAC-IME 修法3：合成期内聯回顯（注音/倉頡拼音、候選字）。挂在 .qword-caret-layer
+/* U6-MAC-IME 修法3：合成期內聯回顯（注音/倉頡拼音、候選字）。掛在 .qword-caret-layer
    內、用與畫游標同一把 pt→CSS px 尺定位；虛線下劃線＝「合成中」（IM 慣例），與正文
    已定稿文字可區分。字級/高度由 _showComposition 依 caret 墨跡尺即時給。 */
 .qword-composition-overlay {
