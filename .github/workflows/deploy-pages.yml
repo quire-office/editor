@@ -42,6 +42,7 @@ jobs:
           node scripts/u4d_selfcheck.mjs
           node scripts/u4e_selfcheck.mjs
 
+      - { name: "U6 macOS 中文輸入法探針（瀏覽器閘門）", run: "node tests/u6_mac_ime_probe.mjs" }
       - name: 組裝部署目錄 dist/（只放執行時需要的靜態檔）
         run: |
           set -euo pipefail
