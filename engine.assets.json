@@ -1,20 +1,20 @@
 {
-  "$schema": "編輯器外殼的引擎 wasm 資產清單（進 git 的唯一信任來源）",
-  "version": "0.1.0-beta.16",
-  "release_url_template": "https://github.com/quire-office/quire/releases/download/v{version}/{file}",
-  "local_fallback_dir": "QUIRE_ENGINE_PKG",
-  "local_fallback_hint": "設 QUIRE_ENGINE_PKG=/path/to/quire/shells/web/pkg 允許本機引擎建置降級（僅開發用，CI 禁用）",
-  "target_dir": "vendor/pkg/",
-  "assets": [
-    {
-      "file": "quire_web_bg.wasm",
-      "sha256": "e0e4e4426ef7731944bb95c444baafb8ff68061e4d01d5be974bc85ac4362ce3",
-      "note": "引擎 wasm（CI 建置，v0.1.0-beta.16：U5-n 內嵌字型出口 embeddedFontBytes/Family——殼端註冊 FontFace 消渲染/排版雙尺caret飄移；raw 3,127,356 bytes，digest 取自 release API）。"
-    },
-    {
-      "file": "quire_web.js",
-      "sha256": "038a3831c270e27670e7f1c785c509f0b2ddfcf8f2603fddc0ab3d88b9f5ea22",
-      "note": "wasm-bindgen 膠水層（ESM），必須與 wasm 同版本。"
-    }
-  ]
+    "$schema": "編輯器外殼的引擎 wasm 資產清單（進 git 的唯一信任來源）",
+    "version": "0.1.0-beta.17",
+    "release_url_template": "https://github.com/quire-office/quire/releases/download/v{version}/{file}",
+    "local_fallback_dir": "QUIRE_ENGINE_PKG",
+    "local_fallback_hint": "設 QUIRE_ENGINE_PKG=/path/to/quire/shells/web/pkg 允許本機引擎建置降級（僅開發用，CI 禁用）",
+    "target_dir": "vendor/pkg/",
+    "assets": [
+        {
+            "file": "quire_web_bg.wasm",
+            "sha256": "9f3b10cfa8f1f85b4266d135228b0a92d77a04eadb61d80029a866dee71a08c9",
+            "note": "引擎 wasm（CI 建置，v0.1.0-beta.17：P1 首批——R1-a 多步 redo 修復＋K29c/d 重放臂、R1-c 誠實存檔四出口（checked/report/純觀察/能力清單）、HOTFIX wasm 時鐘 cfg 隔離＋防再犯掃描、R1-b rebuild_derived 免 ZIP 止血；raw 3,168,298 bytes，digest 實測自 release 下載件）。"
+        },
+        {
+            "file": "quire_web.js",
+            "sha256": "a76e05d82d4a4a565b550db634616b79db3c54a3d19ae2535752c27f1117c048",
+            "note": "wasm-bindgen 膠水層（ESM），必須與 wasm 同版本。"
+        }
+    ]
 }
